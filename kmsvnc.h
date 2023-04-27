@@ -77,7 +77,7 @@ struct kmsvnc_drm_data
     int source_crtc;
     drmModePlane *plane;
     drmModePlaneRes *plane_res;
-    drmModeFB *mfb;
+    drmModeFB2 *mfb;
     u_int32_t plane_id;
     int mmap_fd;
     size_t mmap_size;
