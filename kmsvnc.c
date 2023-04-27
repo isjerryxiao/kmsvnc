@@ -140,7 +140,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
     switch (key) {
         case 'd':
-            argp_usage(state);
             kmsvnc->card = arg;
             break;
         case 0xfefe:

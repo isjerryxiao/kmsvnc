@@ -270,9 +270,6 @@ static int drm_kmsbuf_dumb() {
 
     drm->mmap_size = open_arg.size;
     drm->mmap_offset = mreq.offset;
-
-    drm->funcs->sync_start = &drm_sync_noop;
-    drm->funcs->sync_end = &drm_sync_noop;
     return 0;
 }
 
@@ -310,9 +307,6 @@ int drm_vendors() {
 
         drm->mmap_size = open_arg.size;
         drm->mmap_offset = mmap_arg.out.addr_ptr;
-
-        drm->funcs->sync_start = &drm_sync_noop;
-        drm->funcs->sync_end = &drm_sync_noop;
     }
     else if (strcmp(driver_name, "nvidia-drm") == 0)
     {
@@ -335,6 +329,22 @@ int drm_vendors() {
     else if (strcmp(driver_name, "test-map-dumb") == 0)
     {
         if (drm_kmsbuf_dumb()) return 1;
+    }
+    else if (strcmp(driver_name, "test-i915-gem") == 0)
+    {
+        struct drm_gem_flink flink;
+        flink.handle = drm->mfb->handle;
+        DRM_IOCTL_MUST(drm->drm_fd, DRM_IOCTL_GEM_FLINK, &flink);
+
+        struct drm_gem_open open_arg;
+        open_arg.name = flink.name;
+        DRM_IOCTL_MUST(drm->drm_fd, DRM_IOCTL_GEM_OPEN, &open_arg);
+
+        struct drm_i915_gem_mmap_gtt mmap_arg;
+        mmap_arg.handle = open_arg.handle;
+        DRM_IOCTL_MUST(drm->drm_fd, DRM_IOCTL_I915_GEM_MMAP_GTT, &mmap_arg);
+        drm->mmap_size = open_arg.size;
+        drm->mmap_offset = mmap_arg.offset;
     }
     else
     {
