@@ -49,7 +49,7 @@ static void update_screen_buf(char* to, char *from, int width, int height) {
     int min_y = INT32_MAX;
     int max_x = -1;
     int max_y = -1;
-    if (width % 2 == 0) {
+    if (!kmsvnc->vnc_opt->disable_cmpfb && width % 2 == 0) {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x+=2) {
                 if (*double_pix_from != *double_pix_to) {
@@ -71,6 +71,11 @@ static void update_screen_buf(char* to, char *from, int width, int height) {
             }
         }
     }
+    else {
+        memcpy(to, from, width * height * BYTES_PER_PIXEL);
+        rfbMarkRectAsModified(kmsvnc->server, 0, 0, width, height);
+        return;
+    }
     max_x = max_x < 0 ? 0 : max_x;
     max_y = max_y < 0 ? 0 : max_y;
     min_x = min_x > width ? 0 : min_x;
@@ -79,7 +84,7 @@ static void update_screen_buf(char* to, char *from, int width, int height) {
     //printf("dirty: %d, %d, %d, %d\n", min_x, min_y, max_x, max_y);
     if (max_x || max_y || min_x || min_y) {
         memcpy(to, from, width * height * BYTES_PER_PIXEL);
-        rfbMarkRectAsModified(kmsvnc->server, min_x, min_y, max_x, max_y);
+        rfbMarkRectAsModified(kmsvnc->server, min_x, min_y, max_x + 2, max_y + 1);
     }
 }
 
@@ -123,13 +128,17 @@ void signal_handler(int signum){
 
 static struct argp_option kmsvnc_main_options[] = {
     {"device", 'd', "/dev/dri/card0", 0, "DRM device"},
-    {"force-driver", 0xfefe, "i915", 0, "force a certain driver (for debug)"},
+    {"source-plane", 0xfefc, "0", 0, "Use specific plane"},
+    {"source-crtc", 0xfefd, "0", 0, "Use specific crtc (to list all crtcs and planes, set this to -1)"},
+    {"force-driver", 0xfefe, "i915", 0, "force a certain driver (for debugging)"},
     {"bind", 'b', "0.0.0.0", 0, "Listen on (ipv4 address)"},
     {"bind6", 0xfeff, "::", 0, "Listen on (ipv6 address)"},
     {"port", 'p', "5900", 0, "Listen port"},
     {"disable-ipv6", '4', 0, OPTION_ARG_OPTIONAL, "Disable ipv6"},
     {"fps", 0xff00, "30", 0, "Target frames per second"},
     {"disable-always-shared", 0xff01, 0, OPTION_ARG_OPTIONAL, "Do not always treat incoming connections as shared"},
+    {"disable-compare-fb", 0xff02, 0, OPTION_ARG_OPTIONAL, "Do not compare pixels"},
+    {"capture-raw-fb", 0xff03, "/tmp/rawfb.bin", 0, "Capture RAW framebuffer instead of starting the vnc server (for debugging)"},
     {"disable-input", 'i', 0, OPTION_ARG_OPTIONAL, "Disable uinput"},
     {"desktop-name", 'n', "kmsvnc", 0, "Specify vnc desktop name"},
     {0}
@@ -141,6 +150,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     switch (key) {
         case 'd':
             kmsvnc->card = arg;
+            break;
+        case 0xfefc:
+            kmsvnc->source_plane = atoi(arg);
+            break;
+        case 0xfefd:
+            kmsvnc->source_crtc = atoi(arg);
             break;
         case 0xfefe:
             kmsvnc->force_driver = arg;
@@ -176,6 +191,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case 0xff01:
             kmsvnc->vnc_opt->always_shared = 0;
+            break;
+        case 0xff02:
+            kmsvnc->vnc_opt->disable_cmpfb = 1;
+            break;
+        case 0xff03:
+            kmsvnc->debug_capture_fb = arg;
+            kmsvnc->disable_input = 1;
             break;
         case 'i':
             kmsvnc->disable_input = 1;
@@ -214,14 +236,14 @@ int main(int argc, char **argv)
     struct argp argp = {kmsvnc_main_options, parse_opt, args_doc, doc};
     argp_parse(&argp, argc, argv, 0, 0, NULL);
 
-    const char* XKB_DEFAULT_LAYOUT = getenv("XKB_DEFAULT_LAYOUT");
-    if (!XKB_DEFAULT_LAYOUT || strcmp(XKB_DEFAULT_LAYOUT, "") == 0) {
-        printf("No keyboard layout set from environment variables, use US layout by default\n");
-        printf("See https://xkbcommon.org/doc/current/structxkb__rule__names.html\n");
-        setenv("XKB_DEFAULT_LAYOUT", "us", 1);
-    }
-
     if (!kmsvnc->disable_input) {
+        const char* XKB_DEFAULT_LAYOUT = getenv("XKB_DEFAULT_LAYOUT");
+        if (!XKB_DEFAULT_LAYOUT || strcmp(XKB_DEFAULT_LAYOUT, "") == 0) {
+            printf("No keyboard layout set from environment variables, use US layout by default\n");
+            printf("See https://xkbcommon.org/doc/current/structxkb__rule__names.html\n");
+            setenv("XKB_DEFAULT_LAYOUT", "us", 1);
+        }
+
         if (xkb_init()) {
             cleanup();
             return 1;
@@ -234,6 +256,20 @@ int main(int argc, char **argv)
     if (drm_open()) {
         cleanup();
         return 1;
+    }
+
+    if (kmsvnc->debug_capture_fb) {
+        int wfd = open(kmsvnc->debug_capture_fb, O_WRONLY | O_CREAT, 00644);
+        if (wfd > 0) {
+            write(wfd, kmsvnc->drm->mapped, kmsvnc->drm->mfb->width * kmsvnc->drm->mfb->height * BYTES_PER_PIXEL);
+            fsync(wfd);
+            printf("wrote raw frame buffer to %s\n", kmsvnc->debug_capture_fb);
+        }
+        else {
+            fprintf(stderr, "open file %s failed, %s\n", kmsvnc->debug_capture_fb, strerror(errno));
+        }
+        cleanup();
+        return 0;
     }
 
     size_t buflen = kmsvnc->drm->mfb->width * kmsvnc->drm->mfb->height * BYTES_PER_PIXEL;

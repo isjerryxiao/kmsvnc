@@ -130,6 +130,10 @@ void drm_cleanup() {
             close(kmsvnc->drm->drm_fd);
             kmsvnc->drm->drm_fd = 0;
         }
+        if (kmsvnc->drm->plane_res) {
+            drmModeFreePlaneResources(kmsvnc->drm->plane_res);
+            kmsvnc->drm->plane_res = NULL;
+        }
         free(kmsvnc->drm);
         kmsvnc->drm = NULL;
     }
@@ -153,13 +157,13 @@ int drm_open() {
     {
         perror("Failed to set universal planes capability: primary planes will not be usable");
     }
-    if (drm->source_plane > 0)
+    if (kmsvnc->source_plane > 0)
     {
-        drm->plane = drmModeGetPlane(drm->drm_fd, drm->source_plane);
+        drm->plane = drmModeGetPlane(drm->drm_fd, kmsvnc->source_plane);
         if (!drm->plane)
-            DRM_FATAL("Failed to get plane %d: %s\n", drm->source_plane, strerror(errno));
+            DRM_FATAL("Failed to get plane %d: %s\n", kmsvnc->source_plane, strerror(errno));
         if (drm->plane->fb_id == 0)
-            fprintf(stderr, "Place %d does not have an attached framebuffer\n", drm->source_plane);
+            fprintf(stderr, "Place %d does not have an attached framebuffer\n", kmsvnc->source_plane);
     }
     else
     {
@@ -176,7 +180,7 @@ int drm_open() {
                 continue;
             }
             printf("Plane %u CRTC %u FB %u\n", drm->plane->plane_id, drm->plane->crtc_id, drm->plane->fb_id);
-            if ((drm->source_crtc > 0 && drm->plane->crtc_id != drm->source_crtc) || drm->plane->fb_id == 0)
+            if ((kmsvnc->source_crtc != 0 && drm->plane->crtc_id != kmsvnc->source_crtc) || drm->plane->fb_id == 0)
             {
                 // Either not connected to the target source CRTC
                 // or not active.
@@ -188,9 +192,9 @@ int drm_open() {
         }
         if (i == drm->plane_res->count_planes)
         {
-            if (drm->source_crtc > 0)
+            if (kmsvnc->source_crtc != 0)
             {
-                DRM_FATAL("No usable planes found on CRTC %d\n", drm->source_crtc);
+                DRM_FATAL("No usable planes found on CRTC %d\n", kmsvnc->source_crtc);
             }
             else
             {

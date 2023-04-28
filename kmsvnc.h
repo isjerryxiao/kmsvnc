@@ -19,16 +19,20 @@ struct vnc_opt
     char *bind6;
     char disable_ipv6;
     int sleep_ns;
-    int always_shared;
+    char always_shared;
+    char disable_cmpfb;
     char *desktop_name;
 };
 
 struct kmsvnc_data
 {
+    char *debug_capture_fb;
     char *card;
     char *force_driver;
     struct vnc_opt *vnc_opt;
     char disable_input;
+    int source_plane;
+    int source_crtc;
     struct kmsvnc_drm_data *drm;
     struct kmsvnc_input_data *input;
     struct kmsvnc_keymap_data *keymap;
@@ -73,8 +77,6 @@ struct kmsvnc_drm_data
     int drm_fd;
     drmVersionPtr drm_ver;
     int prime_fd;
-    int source_plane;
-    int source_crtc;
     drmModePlane *plane;
     drmModePlaneRes *plane_res;
     drmModeFB2 *mfb;
