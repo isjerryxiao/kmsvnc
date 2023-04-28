@@ -8,6 +8,7 @@
 #include <amdgpu_drm.h>
 #include <xf86drmMode.h>
 #include <linux/dma-buf.h>
+#include <va/va.h>
 
 
 #define BYTES_PER_PIXEL 4
@@ -36,6 +37,7 @@ struct kmsvnc_data
     struct kmsvnc_drm_data *drm;
     struct kmsvnc_input_data *input;
     struct kmsvnc_keymap_data *keymap;
+    struct kmsvnc_va_data *va;
     rfbScreenInfoPtr server;
     char shutdown;
     char *buf;
@@ -86,5 +88,20 @@ struct kmsvnc_drm_data
     off_t mmap_offset;
     char *mapped;
     struct kmsvnc_drm_funcs *funcs;
+    char *pixfmt_name;
+    char *mod_vendor;
+    char *mod_name;
 };
 
+struct kmsvnc_va_data
+{
+    VADisplay dpy;
+    int render_node_fd;
+    VASurfaceID surface_id;
+    VAImage *image;
+    char *imgbuf;
+};
+
+#define KMSVNC_FATAL(...) do{ fprintf(stderr, __VA_ARGS__); return 1; } while(0)
+#define KMSVNC_ARRAY_ELEMENTS(x) (sizeof(x) / sizeof(x[0]))
+#define KMSVNC_FOURCC_TO_INT(a,b,c,d) (((a) << 0) + ((b) << 8) + ((c) << 16) + ((d) << 24))

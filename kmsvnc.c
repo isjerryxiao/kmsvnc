@@ -11,6 +11,7 @@
 #include "keymap.h"
 #include "input.h"
 #include "drm.h"
+#include "va.h"
 
 struct kmsvnc_data *kmsvnc = NULL;
 
@@ -97,6 +98,9 @@ static void cleanup() {
     }
     if (kmsvnc->drm) {
         drm_cleanup();
+    }
+    if (kmsvnc->va) {
+        va_cleanup();
     }
     if (kmsvnc) {
         if (kmsvnc->vnc_opt) {
@@ -215,11 +219,16 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 int main(int argc, char **argv)
 {
-    struct vnc_opt *vncopt = malloc(sizeof(struct vnc_opt));
-    memset(vncopt, 0, sizeof(struct vnc_opt));
-
     kmsvnc = malloc(sizeof(struct kmsvnc_data));
+    if (!kmsvnc) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
     memset(kmsvnc, 0, sizeof(struct kmsvnc_data));
+
+    struct vnc_opt *vncopt = malloc(sizeof(struct vnc_opt));
+    if (!vncopt) {
+        free(kmsvnc);
+        KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
+    }
+    memset(vncopt, 0, sizeof(struct vnc_opt));
 
     kmsvnc->vnc_opt = vncopt;
 
@@ -260,8 +269,14 @@ int main(int argc, char **argv)
 
     if (kmsvnc->debug_capture_fb) {
         int wfd = open(kmsvnc->debug_capture_fb, O_WRONLY | O_CREAT, 00644);
+        int max_size = 0;
+        for (int i = 0; i < 4; i++) {
+            int size = kmsvnc->drm->mfb->offsets[i] + kmsvnc->drm->mfb->height * kmsvnc->drm->mfb->pitches[i];
+            if (size > max_size) max_size = size;
+        }
         if (wfd > 0) {
-            write(wfd, kmsvnc->drm->mapped, kmsvnc->drm->mfb->width * kmsvnc->drm->mfb->height * BYTES_PER_PIXEL);
+            if (kmsvnc->va) va_hwframe_to_vaapi(kmsvnc->drm->mapped);
+            write(wfd, kmsvnc->drm->mapped, max_size);
             fsync(wfd);
             printf("wrote raw frame buffer to %s\n", kmsvnc->debug_capture_fb);
         }
@@ -274,8 +289,16 @@ int main(int argc, char **argv)
 
     size_t buflen = kmsvnc->drm->mfb->width * kmsvnc->drm->mfb->height * BYTES_PER_PIXEL;
     kmsvnc->buf = malloc(buflen);
+    if (!kmsvnc->buf) {
+        cleanup();
+        KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
+    }
     memset(kmsvnc->buf, 0, buflen);
     kmsvnc->buf1 = malloc(buflen);
+    if (!kmsvnc->buf1) {
+        cleanup();
+        KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
+    }
     memset(kmsvnc->buf1, 0, buflen);
 
     signal(SIGHUP, &signal_handler);

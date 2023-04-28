@@ -29,13 +29,14 @@ void uinput_cleanup()
 int uinput_init()
 {
     struct kmsvnc_input_data *inp = malloc(sizeof(struct kmsvnc_input_data));
+    if (!inp) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
     memset(inp, 0, sizeof(struct kmsvnc_input_data));
     kmsvnc->input = inp;
 
     inp->uinput_fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
     if (inp->uinput_fd <= 0)
     {
-        INP_FATAL("Failed to open uinput\n");
+        KMSVNC_FATAL("Failed to open uinput\n");
     }
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_KEY);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_SYN);
@@ -74,6 +75,7 @@ int uinput_init()
     INP_IOCTL_MUST(inp->uinput_fd, UI_DEV_CREATE);
 
     inp->keystate = malloc(UINPUT_MAX_KEY);
+    if (!inp->keystate) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
     memset(inp->keystate, 0, UINPUT_MAX_KEY);
 
     return 0;
@@ -114,7 +116,7 @@ void rfb_key_hook(rfbBool down, rfbKeySym keysym, rfbClientPtr cl)
                 .value = 0,
             },
         };
-        for (int i = 0; i < ARRAY_SIZE(ies); i++)
+        for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies); i++)
         {
             write(kmsvnc->input->uinput_fd, &ies[i], sizeof(ies[0]));
         }
@@ -159,7 +161,7 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
             .value = 0,
         },
     };
-    for (int i = 0; i < ARRAY_SIZE(ies1); i++)
+    for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies1); i++)
     {
         write(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
     }
@@ -177,7 +179,7 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
                 .value = 0,
             },
         };
-        for (int i = 0; i < ARRAY_SIZE(ies2); i++)
+        for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies2); i++)
         {
             write(kmsvnc->input->uinput_fd, &ies2[i], sizeof(ies2[0]));
         }

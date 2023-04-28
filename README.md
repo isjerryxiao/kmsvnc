@@ -10,6 +10,7 @@ Currently in very early stage.
  * libvncserver
  * libxkbcommon
  * libdrm
+ * libva
 
 ## Building
 ```
