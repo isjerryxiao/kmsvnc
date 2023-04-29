@@ -284,7 +284,7 @@ int va_init() {
         {&fmt_xbgr, 1, KMSVNC_FOURCC_TO_INT('A','B','G','R'), 1, 1},
     };
 
-    va->derive_enabled = strcmp(kmsvnc->drm->drm_ver->name, "i915") != 0;
+    va->derive_enabled = 0;
     va->derive_enabled = kmsvnc->va_derive_enabled < 0 ? va->derive_enabled : kmsvnc->va_derive_enabled != 0;
     if (va->derive_enabled) {
         if ((s = vaDeriveImage(va->dpy, va->surface_id, va->image)) == VA_STATUS_SUCCESS) {
