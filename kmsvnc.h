@@ -32,6 +32,7 @@ struct kmsvnc_data
     char *force_driver;
     struct vnc_opt *vnc_opt;
     char disable_input;
+    int va_derive_enabled;
     int source_plane;
     int source_crtc;
     struct kmsvnc_drm_data *drm;
@@ -87,6 +88,7 @@ struct kmsvnc_drm_data
     size_t mmap_size;
     off_t mmap_offset;
     char *mapped;
+    char skip_map;
     struct kmsvnc_drm_funcs *funcs;
     char *pixfmt_name;
     char *mod_vendor;
@@ -100,6 +102,9 @@ struct kmsvnc_va_data
     VASurfaceID surface_id;
     VAImage *image;
     char *imgbuf;
+    char is_bgr;  // bgr -> rgb
+    char is_xrgb; // shift 8
+    char derive_enabled;
 };
 
 #define KMSVNC_FATAL(...) do{ fprintf(stderr, __VA_ARGS__); return 1; } while(0)

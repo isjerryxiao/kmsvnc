@@ -44,6 +44,28 @@ static void va_error_callback(void *user_context, const char *message) {
     printf("va error: %s");
 }
 
+static char* fourcc_to_str(int fourcc) {
+    static char ret[5];
+    ret[4] = 0;
+    for (int i = 0; i < 4; i++) {
+        ret[i] = fourcc >> 8*i & 0xff;
+    }
+    return ret;
+}
+
+static void print_va_image_fmt(VAImageFormat *fmt) {
+        printf("image fmt: fourcc %d, %s, byte_order %s, bpp %d, depth %d, blue_mask %#x, green_mask %#x, red_mask %#x, reserved %#x\n", fmt->fourcc,
+            fourcc_to_str(fmt->fourcc),
+            fmt->byte_order == 1 ? "VA_LSB_FIRST" : "VA_MSB_FIRST",
+            fmt->bits_per_pixel,
+            fmt->depth,
+            fmt->blue_mask,
+            fmt->green_mask,
+            fmt->red_mask,
+            fmt->va_reserved
+        );
+}
+
 int va_init() {
     if (!kmsvnc->drm || !kmsvnc->drm->drm_fd || !kmsvnc->drm->prime_fd) {
         KMSVNC_FATAL("drm is not initialized\n");
@@ -104,9 +126,10 @@ int va_init() {
         }
     };
 
-    prime_desc.fourcc = kmsvnc->drm->mfb->pixel_format == KMSVNC_FOURCC_TO_INT('X', 'R', '2', '4') ?
-        KMSVNC_FOURCC_TO_INT('B', 'G', 'R', 'X') :
-        KMSVNC_FOURCC_TO_INT('B', 'G', 'R', 'A') ;
+    char is_alpha = kmsvnc->drm->mfb->pixel_format != KMSVNC_FOURCC_TO_INT('X', 'R', '2', '4');
+    prime_desc.fourcc = kmsvnc->drm->mfb->pixel_format == is_alpha ?
+        KMSVNC_FOURCC_TO_INT('B', 'G', 'R', 'A') :
+        KMSVNC_FOURCC_TO_INT('B', 'G', 'R', 'X') ;
     prime_desc.width = kmsvnc->drm->mfb->width;
     prime_desc.height = kmsvnc->drm->mfb->height;
 
@@ -195,24 +218,32 @@ int va_init() {
     }
 
     for (int i = 0; i < img_fmt_count; i++) {
-        printf("fmt %d: fourcc %d, %c%c%c%c, byte_order %s, bpp %d, depth %d, blue_mask %#x, green_mask %#x, red_mask %#x, reserved %#x\n", i, img_fmts[i].fourcc,
-            img_fmts[i].fourcc & 0xff,
-            img_fmts[i].fourcc >> 8 & 0xff,
-            img_fmts[i].fourcc >> 16 & 0xff,
-            img_fmts[i].fourcc >> 24 & 0xff,
-            img_fmts[i].byte_order - 1 ? "VA_LSB_FIRST" : "VA_MSB_FIRST",
-            img_fmts[i].bits_per_pixel,
-            img_fmts[i].depth,
-            img_fmts[i].blue_mask,
-            img_fmts[i].green_mask,
-            img_fmts[i].red_mask,
-            img_fmts[i].va_reserved
-        );
+        print_va_image_fmt(img_fmts + i);
     }
     #endif
 
-    VAImageFormat format = {
+    VAImageFormat fmt_rgbx = {
         .fourcc = KMSVNC_FOURCC_TO_INT('R','G','B','X'),
+        .byte_order = VA_LSB_FIRST,
+        .bits_per_pixel = 32,
+        .depth = 24,
+        .blue_mask = 0x0000ff00,
+        .green_mask = 0x00ff0000,
+        .red_mask = 0xff000000,
+        .va_reserved = 0x00000000,
+    };
+    VAImageFormat fmt_bgrx = {
+        .fourcc = KMSVNC_FOURCC_TO_INT('B','G','R','X'),
+        .byte_order = VA_LSB_FIRST,
+        .bits_per_pixel = 32,
+        .depth = 24,
+        .blue_mask = 0xff000000,
+        .green_mask = 0x00ff0000,
+        .red_mask = 0x0000ff00,
+        .va_reserved = 0x00000000,
+    };
+    VAImageFormat fmt_xrgb = {
+        .fourcc = KMSVNC_FOURCC_TO_INT('X','R','G','B'),
         .byte_order = VA_LSB_FIRST,
         .bits_per_pixel = 32,
         .depth = 24,
@@ -221,18 +252,117 @@ int va_init() {
         .red_mask = 0x00ff0000,
         .va_reserved = 0x00000000,
     };
+    VAImageFormat fmt_xbgr = {
+        .fourcc = KMSVNC_FOURCC_TO_INT('X','B','G','R'),
+        .byte_order = VA_LSB_FIRST,
+        .bits_per_pixel = 32,
+        .depth = 24,
+        .blue_mask = 0x00ff0000,
+        .green_mask = 0x0000ff00,
+        .red_mask = 0x000000ff,
+        .va_reserved = 0x00000000,
+    };
     va->image = malloc(sizeof(VAImage));
     if (!va->image) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
-    if ((s = vaCreateImage(va->dpy, &format, kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height, va->image)) != VA_STATUS_SUCCESS) {
-        free(va->image);
-        va->image = NULL;
-        VA_MUST(s);
+
+    struct fourcc_data {
+        VAImageFormat *fmt;
+        char is_alpha;
+        int fourcc;
+        char is_bgr;
+        char is_xrgb;
+    };
+    struct fourcc_data format_to_try[] = {
+        {&fmt_rgbx, 0, KMSVNC_FOURCC_TO_INT('R','G','B','X'), 0, 0},
+        {&fmt_rgbx, 1, KMSVNC_FOURCC_TO_INT('R','G','B','A'), 0, 0},
+        {&fmt_xrgb, 0, KMSVNC_FOURCC_TO_INT('X','R','G','B'), 0, 1},
+        {&fmt_xrgb, 1, KMSVNC_FOURCC_TO_INT('A','R','G','B'), 0, 1},
+
+        {&fmt_bgrx, 0, KMSVNC_FOURCC_TO_INT('B','G','R','X'), 1, 0},
+        {&fmt_bgrx, 1, KMSVNC_FOURCC_TO_INT('B','G','R','A'), 1, 0},
+        {&fmt_xbgr, 0, KMSVNC_FOURCC_TO_INT('X','B','G','R'), 1, 1},
+        {&fmt_xbgr, 1, KMSVNC_FOURCC_TO_INT('A','B','G','R'), 1, 1},
+    };
+
+    va->derive_enabled = strcmp(kmsvnc->drm->drm_ver->name, "i915") != 0;
+    va->derive_enabled = kmsvnc->va_derive_enabled < 0 ? va->derive_enabled : kmsvnc->va_derive_enabled != 0;
+    if (va->derive_enabled) {
+        if ((s = vaDeriveImage(va->dpy, va->surface_id, va->image)) == VA_STATUS_SUCCESS) {
+            switch (va->image->format.fourcc) {
+                case KMSVNC_FOURCC_TO_INT('B','G','R','X'):
+                case KMSVNC_FOURCC_TO_INT('B','G','R','A'):
+                    va->is_bgr = 1;
+                    break;
+                case KMSVNC_FOURCC_TO_INT('R','G','B','X'):
+                case KMSVNC_FOURCC_TO_INT('R','G','B','A'):
+                    break;
+                case KMSVNC_FOURCC_TO_INT('X','R','G','B'):
+                    va->is_xrgb = 1;
+                    break;
+                case KMSVNC_FOURCC_TO_INT('X','B','G','R'):
+                    va->is_bgr = 1;
+                    va->is_xrgb = 1;
+                    break;
+                default:
+                    va->derive_enabled = 0;
+                    printf("vaDeriveImage returned unknown fourcc %d %s\n", va->image->format.fourcc, fourcc_to_str(va->image->format.fourcc));
+                    VA_MUST(vaDestroyImage(kmsvnc->va->dpy, kmsvnc->va->image->image_id));
+            }
+        }
+        VA_MAY(s);
     }
-    VA_MUST(vaMapBuffer(va->dpy, va->image->buf, (void**)&va->imgbuf));
+    if (va->derive_enabled) {
+        if ((s = vaMapBuffer(va->dpy, va->image->buf, (void**)&va->imgbuf)) != VA_STATUS_SUCCESS) {
+            VA_MAY(s);
+            VA_MAY(vaDestroyImage(kmsvnc->va->dpy, kmsvnc->va->image->image_id));
+            va->derive_enabled = 0;
+        }
+    }
+    if (!va->derive_enabled) {
+        char success = 0;
+        for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(format_to_try); i++) {
+            if (is_alpha != format_to_try[i].is_alpha) continue;
+            VAImageFormat *fmt = format_to_try[i].fmt;
+            va->is_bgr = format_to_try[i].is_bgr;
+            va->is_xrgb = format_to_try[i].is_xrgb;
+            fmt->fourcc = format_to_try[i].fourcc;
+            if ((s = vaCreateImage(va->dpy, fmt, kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height, va->image)) != VA_STATUS_SUCCESS) {
+                VA_MAY(s);
+                continue;
+            }
+            if ((s = vaMapBuffer(va->dpy, va->image->buf, (void**)&va->imgbuf)) != VA_STATUS_SUCCESS) {
+                VA_MAY(s);
+                VA_MAY(vaDestroyImage(kmsvnc->va->dpy, kmsvnc->va->image->image_id));
+                continue;
+            }
+            if ((s = vaGetImage(kmsvnc->va->dpy, kmsvnc->va->surface_id, 0, 0,
+                    kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height,
+                    kmsvnc->va->image->image_id)) != VA_STATUS_SUCCESS)
+            {
+                VA_MAY(s);
+                VA_MAY(vaUnmapBuffer(kmsvnc->va->dpy, kmsvnc->va->image->buf));
+                VA_MAY(vaDestroyImage(kmsvnc->va->dpy, kmsvnc->va->image->image_id));
+                continue;
+            }
+            else {
+                success = 1;
+                break;
+            }
+        }
+        if (!success) {
+            va->imgbuf = NULL;
+            KMSVNC_FATAL("failed to get vaapi image\n");
+        }
+    }
+    printf("vaapi %simage fourcc isbgr %hd isxrgb %hd\n", va->derive_enabled ? "derive " : "", va->is_bgr, va->is_xrgb);
+    print_va_image_fmt(&va->image->format);
+    return 0;
 }
 
 int va_hwframe_to_vaapi(char *out) {
-    VA_MUST(vaGetImage(kmsvnc->va->dpy, kmsvnc->va->surface_id, 0, 0,
-                        kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height, kmsvnc->va->image->image_id));
+    if (!kmsvnc->va->derive_enabled) {
+        VA_MUST(vaGetImage(kmsvnc->va->dpy, kmsvnc->va->surface_id, 0, 0,
+                kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height, kmsvnc->va->image->image_id));
+    }
     memcpy(out, kmsvnc->va->imgbuf, kmsvnc->drm->mfb->width * kmsvnc->drm->mfb->height * BYTES_PER_PIXEL);
 }

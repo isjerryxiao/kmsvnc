@@ -16,10 +16,6 @@ static void convert_copy(const char *in, int width, int height, char *buff) {
     memcpy(buff, in, width * height * 4);
 }
 
-static void convert_vaapi(const char *in, int width, int height, char *buff) {
-    va_hwframe_to_vaapi(buff);
-}
-
 static void convert_bgrx_to_rgb(const char *in, int width, int height, char *buff)
 {
     for (int y = 0; y < height; y++)
@@ -37,6 +33,17 @@ static char *kms_convert_buf = NULL;
 static size_t kms_convert_buf_len = 0;
 static char *kms_cpy_tmp_buf = NULL;
 static size_t kms_cpy_tmp_buf_len = 0;
+static inline char convert_buf_allocate(size_t len) {
+    if (kms_convert_buf_len < len)
+    {
+        if (kms_convert_buf)
+            free(kms_convert_buf);
+        kms_convert_buf = malloc(len);
+        if (!kms_convert_buf) return 1;
+        kms_convert_buf_len = len;
+    }
+    return 0;
+}
 static inline void convert_x_tiled(const int tilex, const int tiley, const char *in, int width, int height, char *buff)
 {
     if (width % tilex)
@@ -59,14 +66,7 @@ static inline void convert_x_tiled(const int tilex, const int tiley, const char 
         memcpy(kms_cpy_tmp_buf, in, max_offset * 4 + 4);
         in = (const char *)kms_cpy_tmp_buf;
     }
-    if (kms_convert_buf_len < width * height * 4)
-    {
-        if (kms_convert_buf)
-            free(kms_convert_buf);
-        kms_convert_buf = malloc(width * height * 4);
-        if (!kms_convert_buf) return;
-        kms_convert_buf_len = width * height * 4;
-    }
+    if (convert_buf_allocate(width * height * 4)) return;
     for (int y = 0; y < height; y++)
     {
         for (int x = 0; x < width; x++)
@@ -87,6 +87,24 @@ void convert_nvidia_x_tiled_kmsbuf(const char *in, int width, int height, char *
 void convert_intel_x_tiled_kmsbuf(const char *in, int width, int height, char *buff)
 {
     convert_x_tiled(128, 8, in, width, height, buff);
+}
+
+static void convert_vaapi(const char *in, int width, int height, char *buff) {
+    if (kmsvnc->va->is_xrgb || kmsvnc->va->is_bgr) {
+        if (convert_buf_allocate(width * height * BYTES_PER_PIXEL)) return;
+        va_hwframe_to_vaapi(kms_convert_buf);
+        if (kmsvnc->va->is_xrgb) {
+            for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
+                *((uint32_t*)(kms_convert_buf + i)) <<= 8;
+            }
+        }
+        if (kmsvnc->va->is_bgr) {
+            convert_bgrx_to_rgb(kms_convert_buf, width, height, buff);
+        }
+    }
+    else {
+        va_hwframe_to_vaapi(buff);
+    }
 }
 
 static inline void drm_sync(int drmfd, uint64_t flags)
@@ -290,7 +308,7 @@ static int drm_kmsbuf_prime_vaapi() {
     if (va_init()) return 1;
 
     drm->mmap_fd = drm->prime_fd;
-    drm->mapped = kmsvnc->va->imgbuf;
+    drm->skip_map = 1;
     return 0;
 }
 
@@ -392,7 +410,7 @@ int drm_vendors() {
         if (drm_kmsbuf_dumb()) return 1;
     }
 
-    if (!drm->mapped)
+    if (!drm->skip_map && !drm->mapped)
     {
         printf("mapping with size = %d, offset = %d, fd = %d\n", drm->mmap_size, drm->mmap_offset, drm->mmap_fd);
         drm->mapped = mmap(NULL, drm->mmap_size, PROT_READ, MAP_SHARED, drm->mmap_fd, drm->mmap_offset);
