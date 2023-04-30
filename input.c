@@ -26,6 +26,7 @@ void uinput_cleanup()
     }
 }
 
+static void wake_system_up();
 int uinput_init()
 {
     struct kmsvnc_input_data *inp = malloc(sizeof(struct kmsvnc_input_data));
@@ -48,6 +49,10 @@ int uinput_init()
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_ABS);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_ABSBIT, ABS_X);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_ABSBIT, ABS_Y);
+
+    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_REL);
+    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_RELBIT, REL_X);
+    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_RELBIT, REL_Y);
 
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_LEFT);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_MIDDLE);
@@ -78,6 +83,13 @@ int uinput_init()
     if (!inp->keystate) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
     memset(inp->keystate, 0, UINPUT_MAX_KEY);
 
+    if (kmsvnc->input_wakeup) {
+        printf("waiting for 1 second for userspace to detect the input devive...\n");
+        sleep(1);
+        wake_system_up();
+        printf("waiting for 1 second for mouse input to be processed...\n");
+        sleep(1);
+    }
     return 0;
 }
 
@@ -183,5 +195,35 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
         {
             write(kmsvnc->input->uinput_fd, &ies2[i], sizeof(ies2[0]));
         }
+    }
+}
+
+static void wake_system_up()
+{
+    struct input_event ies1[] = {
+        {
+            .type = EV_REL,
+            .code = REL_X,
+            .value = 1,
+        },
+        {
+            .type = EV_SYN,
+            .code = SYN_REPORT,
+            .value = 0,
+        },
+        {
+            .type = EV_REL,
+            .code = REL_X,
+            .value = -1,
+        },
+        {
+            .type = EV_SYN,
+            .code = SYN_REPORT,
+            .value = 0,
+        },
+    };
+    for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies1); i++)
+    {
+        write(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
     }
 }

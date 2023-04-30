@@ -249,7 +249,7 @@ int drm_open() {
     drm->pixfmt_name = drmGetFormatName(drm->mfb->pixel_format);
     drm->mod_vendor = drmGetFormatModifierVendor(drm->mfb->modifier);
     drm->mod_name = drmGetFormatModifierName(drm->mfb->modifier);
-    printf("Template framebuffer is %u: %ux%u fourcc:%u mod:%u flags:%u\n", drm->mfb->fb_id, drm->mfb->width, drm->mfb->height, drm->mfb->pixel_format, drm->mfb->modifier, drm->mfb->flags);
+    printf("Template framebuffer is %u: %ux%u fourcc:%u mod:%lu flags:%u\n", drm->mfb->fb_id, drm->mfb->width, drm->mfb->height, drm->mfb->pixel_format, drm->mfb->modifier, drm->mfb->flags);
     printf("handles %u %u %u %u\n", drm->mfb->handles[0], drm->mfb->handles[1], drm->mfb->handles[2], drm->mfb->handles[3]);
     printf("offsets %u %u %u %u\n", drm->mfb->offsets[0], drm->mfb->offsets[1], drm->mfb->offsets[2], drm->mfb->offsets[3]);
     printf("pitches %u %u %u %u\n", drm->mfb->pitches[0], drm->mfb->pitches[1], drm->mfb->pitches[2], drm->mfb->pitches[3]);
@@ -412,7 +412,7 @@ int drm_vendors() {
 
     if (!drm->skip_map && !drm->mapped)
     {
-        printf("mapping with size = %d, offset = %d, fd = %d\n", drm->mmap_size, drm->mmap_offset, drm->mmap_fd);
+        printf("mapping with size = %lu, offset = %ld, fd = %d\n", drm->mmap_size, drm->mmap_offset, drm->mmap_fd);
         drm->mapped = mmap(NULL, drm->mmap_size, PROT_READ, MAP_SHARED, drm->mmap_fd, drm->mmap_offset);
         if (drm->mapped == MAP_FAILED)
         {

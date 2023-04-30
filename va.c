@@ -36,12 +36,12 @@ void va_cleanup() {
 
 static void va_msg_callback(void *user_context, const char *message) {
     #ifdef KMSVNC_VA_DEBUG
-    printf("va msg: %s");
+    printf("va msg: %s", message);
     #endif
 }
 
 static void va_error_callback(void *user_context, const char *message) {
-    printf("va error: %s");
+    printf("va error: %s", message);
 }
 
 static char* fourcc_to_str(int fourcc) {

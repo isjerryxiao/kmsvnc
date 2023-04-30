@@ -31,6 +31,7 @@ struct kmsvnc_data
     char *card;
     char *force_driver;
     struct vnc_opt *vnc_opt;
+    char input_wakeup;
     char disable_input;
     int va_derive_enabled;
     int source_plane;
