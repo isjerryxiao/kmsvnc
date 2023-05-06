@@ -130,7 +130,7 @@ void rfb_key_hook(rfbBool down, rfbKeySym keysym, rfbClientPtr cl)
         };
         for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies); i++)
         {
-            write(kmsvnc->input->uinput_fd, &ies[i], sizeof(ies[0]));
+            KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies[i], sizeof(ies[0]));
         }
 
         kmsvnc->input->keystate[search.keycode] = down;
@@ -175,7 +175,7 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
     };
     for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies1); i++)
     {
-        write(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
+        KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
     }
     if (mask & 0b11000)
     {
@@ -193,7 +193,7 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
         };
         for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies2); i++)
         {
-            write(kmsvnc->input->uinput_fd, &ies2[i], sizeof(ies2[0]));
+            KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies2[i], sizeof(ies2[0]));
         }
     }
 }
@@ -224,6 +224,6 @@ static void wake_system_up()
     };
     for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies1); i++)
     {
-        write(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
+        KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
     }
 }

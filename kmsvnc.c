@@ -212,6 +212,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             else {
                 kmsvnc->va_derive_enabled = 0;
             }
+            break;
         case 'w':
             kmsvnc->input_wakeup = 1;
             break;
@@ -289,7 +290,7 @@ int main(int argc, char **argv)
         }
         if (wfd > 0) {
             if (kmsvnc->va) va_hwframe_to_vaapi(kmsvnc->drm->mapped);
-            write(wfd, kmsvnc->drm->mapped, max_size);
+            KMSVNC_WRITE_MAY(wfd, kmsvnc->drm->mapped, (ssize_t)max_size);
             fsync(wfd);
             printf("wrote raw frame buffer to %s\n", kmsvnc->debug_capture_fb);
         }

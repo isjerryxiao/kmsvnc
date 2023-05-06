@@ -54,7 +54,7 @@ static char* fourcc_to_str(int fourcc) {
 }
 
 static void print_va_image_fmt(VAImageFormat *fmt) {
-        printf("image fmt: fourcc %d, %s, byte_order %s, bpp %d, depth %d, blue_mask %#x, green_mask %#x, red_mask %#x, reserved %#x\n", fmt->fourcc,
+        printf("image fmt: fourcc %d, %s, byte_order %s, bpp %d, depth %d, blue_mask %#x, green_mask %#x, red_mask %#x, reserved %#x %#x %#x %#x\n", fmt->fourcc,
             fourcc_to_str(fmt->fourcc),
             fmt->byte_order == 1 ? "VA_LSB_FIRST" : "VA_MSB_FIRST",
             fmt->bits_per_pixel,
@@ -62,7 +62,10 @@ static void print_va_image_fmt(VAImageFormat *fmt) {
             fmt->blue_mask,
             fmt->green_mask,
             fmt->red_mask,
-            fmt->va_reserved
+            fmt->va_reserved[0],
+            fmt->va_reserved[1],
+            fmt->va_reserved[2],
+            fmt->va_reserved[3]
         );
 }
 
@@ -230,7 +233,7 @@ int va_init() {
         .blue_mask = 0x0000ff00,
         .green_mask = 0x00ff0000,
         .red_mask = 0xff000000,
-        .va_reserved = 0x00000000,
+        .va_reserved = {0,0,0,0},
     };
     VAImageFormat fmt_bgrx = {
         .fourcc = KMSVNC_FOURCC_TO_INT('B','G','R','X'),
@@ -240,7 +243,7 @@ int va_init() {
         .blue_mask = 0xff000000,
         .green_mask = 0x00ff0000,
         .red_mask = 0x0000ff00,
-        .va_reserved = 0x00000000,
+        .va_reserved = {0,0,0,0},
     };
     VAImageFormat fmt_xrgb = {
         .fourcc = KMSVNC_FOURCC_TO_INT('X','R','G','B'),
@@ -250,7 +253,7 @@ int va_init() {
         .blue_mask = 0x000000ff,
         .green_mask = 0x0000ff00,
         .red_mask = 0x00ff0000,
-        .va_reserved = 0x00000000,
+        .va_reserved = {0,0,0,0},
     };
     VAImageFormat fmt_xbgr = {
         .fourcc = KMSVNC_FOURCC_TO_INT('X','B','G','R'),
@@ -260,7 +263,7 @@ int va_init() {
         .blue_mask = 0x00ff0000,
         .green_mask = 0x0000ff00,
         .red_mask = 0x000000ff,
-        .va_reserved = 0x00000000,
+        .va_reserved = {0,0,0,0},
     };
     va->image = malloc(sizeof(VAImage));
     if (!va->image) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);

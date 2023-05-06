@@ -111,3 +111,4 @@ struct kmsvnc_va_data
 #define KMSVNC_FATAL(...) do{ fprintf(stderr, __VA_ARGS__); return 1; } while(0)
 #define KMSVNC_ARRAY_ELEMENTS(x) (sizeof(x) / sizeof(x[0]))
 #define KMSVNC_FOURCC_TO_INT(a,b,c,d) (((a) << 0) + ((b) << 8) + ((c) << 16) + ((d) << 24))
+#define KMSVNC_WRITE_MAY(fd,buf,count) do { ssize_t e = write((fd), (buf), (count)); if (e != (count)) fprintf(stderr, "should write %ld bytes, actually wrote %ld, on line %d\n", (count), e, __LINE__); } while (0)
