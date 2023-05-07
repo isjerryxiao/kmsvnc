@@ -144,6 +144,7 @@ static struct argp_option kmsvnc_main_options[] = {
     {"disable-compare-fb", 0xff02, 0, OPTION_ARG_OPTIONAL, "Do not compare pixels"},
     {"capture-raw-fb", 0xff03, "/tmp/rawfb.bin", 0, "Capture RAW framebuffer instead of starting the vnc server (for debugging)"},
     {"va-derive", 0xff04, "off", 0, "Enable derive with vaapi"},
+    {"va-print-format", 0xff05, 0, OPTION_ARG_OPTIONAL, "Print supported vaImage format"},
     {"wakeup", 'w', 0, OPTION_ARG_OPTIONAL, "Move mouse to wake the system up before start"},
     {"disable-input", 'i', 0, OPTION_ARG_OPTIONAL, "Disable uinput"},
     {"desktop-name", 'n', "kmsvnc", 0, "Specify vnc desktop name"},
@@ -212,6 +213,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             else {
                 kmsvnc->va_derive_enabled = 0;
             }
+            break;
+        case 0xff05:
+            kmsvnc->va_print_fmt = 1;
             break;
         case 'w':
             kmsvnc->input_wakeup = 1;

@@ -12,6 +12,17 @@
 
 extern struct kmsvnc_data *kmsvnc;
 
+static int check_pixfmt_non_vaapi() {
+    if (
+        kmsvnc->drm->mfb->pixel_format != KMSVNC_FOURCC_TO_INT('X', 'R', '2', '4') &&
+        kmsvnc->drm->mfb->pixel_format != KMSVNC_FOURCC_TO_INT('A', 'R', '2', '4')
+    )
+    {
+        KMSVNC_FATAL("Unsupported pixfmt %s, please create an issue with your pixfmt.\n", kmsvnc->drm->pixfmt_name);
+    }
+    return 0;
+}
+
 static void convert_copy(const char *in, int width, int height, char *buff) {
     memcpy(buff, in, width * height * 4);
 }
@@ -90,20 +101,34 @@ void convert_intel_x_tiled_kmsbuf(const char *in, int width, int height, char *b
 }
 
 static void convert_vaapi(const char *in, int width, int height, char *buff) {
-    if (kmsvnc->va->is_xrgb || kmsvnc->va->is_bgr) {
+    if (KMSVNC_FOURCC_TO_INT('R','G','B', 0) & kmsvnc->va->image->format.fourcc == KMSVNC_FOURCC_TO_INT('R','G','B', 0)) {
+        va_hwframe_to_vaapi(buff);
+    }
+    else {
         if (convert_buf_allocate(width * height * BYTES_PER_PIXEL)) return;
         va_hwframe_to_vaapi(kms_convert_buf);
-        if (kmsvnc->va->is_xrgb) {
+        // is 30 depth?
+        if (kmsvnc->va->image->format.depth == 30) {
+            for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
+                uint32_t pixdata = *((uint32_t*)(kms_convert_buf + i));
+                kms_convert_buf[i] = (pixdata & 0x3ff00000) >> 20 >> 2;
+                kms_convert_buf[i+1] = (pixdata & 0xffc00) >> 10 >> 2;
+                kms_convert_buf[i+2] = (pixdata & 0x3ff) >> 2;
+            }
+        }
+        // is xrgb?
+        if ((kmsvnc->va->image->format.blue_mask | kmsvnc->va->image->format.red_mask) < 0x1000000) {
             for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
                 *((uint32_t*)(kms_convert_buf + i)) <<= 8;
             }
         }
-        if (kmsvnc->va->is_bgr) {
+        // is bgr?
+        if (kmsvnc->va->image->format.blue_mask > kmsvnc->va->image->format.red_mask) {
             convert_bgrx_to_rgb(kms_convert_buf, width, height, buff);
         }
-    }
-    else {
-        va_hwframe_to_vaapi(buff);
+        else {
+            memcpy(buff, kms_convert_buf, width * height * BYTES_PER_PIXEL);
+        }
     }
 }
 
@@ -255,14 +280,6 @@ int drm_open() {
     printf("pitches %u %u %u %u\n", drm->mfb->pitches[0], drm->mfb->pitches[1], drm->mfb->pitches[2], drm->mfb->pitches[3]);
     printf("format %s, modifier %s:%s\n", drm->pixfmt_name, drm->mod_vendor, drm->mod_name);
 
-    if (
-        drm->mfb->pixel_format != KMSVNC_FOURCC_TO_INT('X', 'R', '2', '4') &&
-        drm->mfb->pixel_format != KMSVNC_FOURCC_TO_INT('A', 'R', '2', '4')
-    )
-    {
-        KMSVNC_FATAL("Unsupported pixfmt %s, please create an issue with your pixfmt.\n", drm->pixfmt_name);
-    }
-
     if (!drm->mfb->handles[0])
     {
         KMSVNC_FATAL("No handle set on framebuffer: maybe you need some additional capabilities?\n");
@@ -357,6 +374,7 @@ int drm_vendors() {
     }
     else if (strcmp(driver_name, "nvidia-drm") == 0)
     {
+        if (check_pixfmt_non_vaapi()) return 1;
         printf("warn: nvidia card detected. Currently only x-tiled framebuffer is supported. Performance may suffer.\n");
         drm->funcs->convert = &convert_nvidia_x_tiled_kmsbuf;
         if (drm_kmsbuf_dumb()) return 1;
@@ -366,6 +384,7 @@ int drm_vendors() {
              strcmp(driver_name, "virtio_gpu") == 0
     )
     {
+        if (check_pixfmt_non_vaapi()) return 1;
         if (drm->mfb->modifier != DRM_FORMAT_MOD_NONE && drm->mfb->modifier != DRM_FORMAT_MOD_LINEAR) {
             printf("warn: modifier is not LINEAR, please create an issue with your modifier.\n");
         }
@@ -374,14 +393,17 @@ int drm_vendors() {
     }
     else if (strcmp(driver_name, "test-prime") == 0)
     {
+        if (check_pixfmt_non_vaapi()) return 1;
         if (drm_kmsbuf_prime()) return 1;
     }
     else if (strcmp(driver_name, "test-map-dumb") == 0)
     {
+        if (check_pixfmt_non_vaapi()) return 1;
         if (drm_kmsbuf_dumb()) return 1;
     }
     else if (strcmp(driver_name, "test-i915-gem") == 0)
     {
+        if (check_pixfmt_non_vaapi()) return 1;
         struct drm_gem_flink flink;
         flink.handle = drm->mfb->handles[0];
         DRM_IOCTL_MUST(drm->drm_fd, DRM_IOCTL_GEM_FLINK, &flink);
@@ -398,11 +420,13 @@ int drm_vendors() {
     }
     else if (strcmp(driver_name, "test-i915-prime-xtiled") == 0)
     {
+        if (check_pixfmt_non_vaapi()) return 1;
         drm->funcs->convert = &convert_intel_x_tiled_kmsbuf;
         if (drm_kmsbuf_prime()) return 1;
     }
     else
     {
+        if (check_pixfmt_non_vaapi()) return 1;
         fprintf(stderr, "Untested drm driver, use at your own risk!\n");
         if (drm->mfb->modifier != DRM_FORMAT_MOD_NONE && drm->mfb->modifier != DRM_FORMAT_MOD_LINEAR) {
             printf("warn: modifier is not LINEAR, please create an issue with your driver and modifier.\n");

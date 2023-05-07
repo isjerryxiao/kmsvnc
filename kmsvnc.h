@@ -34,6 +34,7 @@ struct kmsvnc_data
     char input_wakeup;
     char disable_input;
     int va_derive_enabled;
+    int va_print_fmt;
     int source_plane;
     int source_crtc;
     struct kmsvnc_drm_data *drm;
@@ -103,9 +104,9 @@ struct kmsvnc_va_data
     VASurfaceID surface_id;
     VAImage *image;
     char *imgbuf;
-    char is_bgr;  // bgr -> rgb
-    char is_xrgb; // shift 8
     char derive_enabled;
+    VAImageFormat* img_fmts;
+    int img_fmt_count;
 };
 
 #define KMSVNC_FATAL(...) do{ fprintf(stderr, __VA_ARGS__); return 1; } while(0)
