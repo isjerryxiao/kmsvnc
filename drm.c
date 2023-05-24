@@ -376,7 +376,9 @@ int drm_vendors() {
     {
         if (check_pixfmt_non_vaapi()) return 1;
         printf("warn: nvidia card detected. Currently only x-tiled framebuffer is supported. Performance may suffer.\n");
-        drm->funcs->convert = &convert_nvidia_x_tiled_kmsbuf;
+        if (drm->mfb->modifier != DRM_FORMAT_MOD_NONE && drm->mfb->modifier != DRM_FORMAT_MOD_LINEAR) {
+            drm->funcs->convert = &convert_nvidia_x_tiled_kmsbuf;
+        }
         if (drm_kmsbuf_dumb()) return 1;
     }
     else if (strcmp(driver_name, "vmwgfx") == 0 ||
