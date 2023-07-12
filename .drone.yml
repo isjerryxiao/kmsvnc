@@ -1,0 +1,21 @@
+kind: pipeline
+type: docker
+name: default
+
+steps:
+- name: build
+  image: archlinux:latest
+  commands:
+  - pacman -Syu --noconfirm --needed base-devel libvncserver libxkbcommon libdrm libva git cmake
+  - mkdir build
+  - cd build
+  - cmake ..
+  - make
+
+trigger:
+  branch:
+  - master
+  - dev
+  event:
+    exclude:
+    - pull_request

@@ -1,5 +1,7 @@
 # kmsvnc
 
+[![Build Status](https://drone.jerryxiao.cc/api/badges/Jerry/kmsvnc/status.svg)](https://drone.jerryxiao.cc/Jerry/kmsvnc)
+
 ## Introduction
 A VNC server for DRM/KMS capable GNU/Linux devices.  
 The goal is to simply have a universally working vncserver on X, wayland and even something like your linux VT.  
