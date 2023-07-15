@@ -39,7 +39,7 @@ void va_cleanup() {
 }
 
 static void va_msg_callback(void *user_context, const char *message) {
-    if (kmsvnc->va_print_fmt) {
+    if (kmsvnc->va_debug) {
         printf("va msg: %s", message);
     }
 }
@@ -158,7 +158,7 @@ int va_init() {
     if (!rt_format) {
         KMSVNC_FATAL("Unsupported pixfmt %s for vaapi, please create an issue with your pixfmt.", kmsvnc->drm->pixfmt_name);
     }
-    if (kmsvnc->va_print_fmt) {
+    if (kmsvnc->va_debug) {
         printf("selected rt_format %u, alpha %d\n", rt_format, is_alpha);
     }
     prime_desc.width = kmsvnc->drm->mfb->width;
@@ -249,7 +249,7 @@ int va_init() {
         }
     }
 
-    if (kmsvnc->va_print_fmt) {
+    if (kmsvnc->va_debug) {
         for (int i = 0; i < va->img_fmt_count; i++) {
             print_va_image_fmt(va->img_fmts + i);
         }
@@ -318,7 +318,7 @@ int va_init() {
         char success = 0;
         for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(format_to_try); i++) {
             if (format_to_try[i].fmt == NULL) continue;
-            if (!kmsvnc->va_print_fmt && rt_format != format_to_try[i].va_rt_format) continue;
+            if (!kmsvnc->va_debug && rt_format != format_to_try[i].va_rt_format) continue;
             if (is_alpha != format_to_try[i].is_alpha) continue;
 
             VAImageFormat *fmt = format_to_try[i].fmt;

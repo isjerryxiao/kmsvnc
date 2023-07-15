@@ -144,7 +144,11 @@ static struct argp_option kmsvnc_main_options[] = {
     {"disable-compare-fb", 0xff02, 0, OPTION_ARG_OPTIONAL, "Do not compare pixels"},
     {"capture-raw-fb", 0xff03, "/tmp/rawfb.bin", 0, "Capture RAW framebuffer instead of starting the vnc server (for debugging)"},
     {"va-derive", 0xff04, "off", 0, "Enable derive with vaapi"},
-    {"va-print-format", 0xff05, 0, OPTION_ARG_OPTIONAL, "Print supported vaImage format"},
+    {"va-debug", 0xff05, 0, OPTION_ARG_OPTIONAL, "Print va debug message"},
+    {"input-width", 0xff06, "0", 0, "Explicitly set input width, normally this is inferred from screen width on a single display system"},
+    {"input-height", 0xff07, "0", 0, "Explicitly set input height"},
+    {"input-offx", 0xff08, "0", 0, "Set input offset of x axis on a multi display system"},
+    {"input-offy", 0xff09, "0", 0, "Set input offset of y axis on a multi display system"},
     {"wakeup", 'w', 0, OPTION_ARG_OPTIONAL, "Move mouse to wake the system up before start"},
     {"disable-input", 'i', 0, OPTION_ARG_OPTIONAL, "Disable uinput"},
     {"desktop-name", 'n', "kmsvnc", 0, "Specify vnc desktop name"},
@@ -215,7 +219,31 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             break;
         case 0xff05:
-            kmsvnc->va_print_fmt = 1;
+            kmsvnc->va_debug = 1;
+            break;
+        case 0xff06:
+            int width = atoi(arg);
+            if (width > 0) {
+                kmsvnc->input_width = width;
+            }
+            break;
+        case 0xff07:
+            int height = atoi(arg);
+            if (height > 0) {
+                kmsvnc->input_height = height;
+            }
+            break;
+        case 0xff08:
+            int offset_x = atoi(arg);
+            if (offset_x > 0) {
+                kmsvnc->input_offx = offset_x;
+            }
+            break;
+        case 0xff09:
+            int offset_y = atoi(arg);
+            if (offset_y > 0) {
+                kmsvnc->input_offy = offset_y;
+            }
             break;
         case 'w':
             kmsvnc->input_wakeup = 1;

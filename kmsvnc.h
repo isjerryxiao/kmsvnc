@@ -34,9 +34,13 @@ struct kmsvnc_data
     char input_wakeup;
     char disable_input;
     int va_derive_enabled;
-    int va_print_fmt;
+    int va_debug;
     int source_plane;
     int source_crtc;
+    int input_width;
+    int input_height;
+    int input_offx;
+    int input_offy;
     struct kmsvnc_drm_data *drm;
     struct kmsvnc_input_data *input;
     struct kmsvnc_keymap_data *keymap;
