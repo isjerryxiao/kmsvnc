@@ -89,6 +89,89 @@ static void update_screen_buf(char* to, char *from, int width, int height) {
     }
 }
 
+static inline void update_vnc_cursor(char *data, int width, int height) {
+    uint8_t r, g, b, a;
+    #define CURSOR_MIN_A 160 // ~63%
+    int min_x = width;
+    int max_x = -1;
+    int min_y = height;
+    int max_y = -1;
+    int x, y;
+
+    for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
+        uint32_t pixdata = htonl(*((uint32_t*)(data + i)));
+        //r = (pixdata & 0xff000000u) >> 24;
+        //g = (pixdata & 0x00ff0000u) >> 16;
+        //b = (pixdata & 0x0000ff00u) >> 8;
+        a = pixdata & 0xff;
+        if (a > CURSOR_MIN_A) {
+            x = (i / BYTES_PER_PIXEL) % width;
+            y = (i / BYTES_PER_PIXEL) / width;
+            if (x < min_x) min_x = x;
+            if (y < min_y) min_y = y;
+            if (x > max_x) max_x = x;
+            if (y > max_y) max_y = y;
+        }
+    }
+    if (min_x > max_x || min_y > max_y) {
+        // no cursor detected
+        return;
+    }
+    int rwidth = max_x - min_x + 1;
+    int rheight = max_y - min_y + 1;
+    if (kmsvnc->cursor_bitmap_len < rwidth * rheight * BYTES_PER_PIXEL)
+    {
+        if (kmsvnc->cursor_bitmap)
+            free(kmsvnc->cursor_bitmap);
+        kmsvnc->cursor_bitmap = malloc(rwidth * rheight * BYTES_PER_PIXEL);
+        if (!kmsvnc->cursor_bitmap) return;
+        kmsvnc->cursor_bitmap_len = rwidth * rheight * BYTES_PER_PIXEL;
+    }
+    char *rich_source = malloc(rwidth * rheight * BYTES_PER_PIXEL);
+    if (!rich_source) return;
+    char *maskString = malloc(rwidth * rheight);
+    if (!maskString) {
+        free(rich_source);
+        return;
+    }
+    memset(maskString, ' ', rwidth * rheight);
+    for (int i = 0; i < rwidth; i++) {
+        for (int j = 0; j < rheight; j++) {
+            int t = (i + j * rwidth) * BYTES_PER_PIXEL;
+            int s = ((i+min_x) + (j+min_y) * width) * BYTES_PER_PIXEL;
+            *((uint32_t*)(rich_source + t)) = *((uint32_t*)(data + s));
+            if ((uint8_t)*(rich_source + t + 3) > CURSOR_MIN_A) {
+                maskString[i + j * rwidth] = 'x';
+            }
+        }
+    }
+
+    if ((kmsvnc->server->cursor->width != rwidth || kmsvnc->server->cursor->height != rheight) || memcmp(kmsvnc->cursor_bitmap, rich_source, rwidth * rheight * BYTES_PER_PIXEL)) {
+        KMSVNC_DEBUG("cursor update %dx%d\n", rwidth, rheight);
+        memcpy(kmsvnc->cursor_bitmap, rich_source, kmsvnc->cursor_bitmap_len);
+        char *cursorString = malloc(rwidth * rheight);
+        if (!cursorString) {
+            free(rich_source);
+            free(maskString);
+            return;
+        }
+
+        memset(cursorString, 'x', rwidth * rheight);
+
+        rfbCursorPtr cursor = rfbMakeXCursor(rwidth, rheight, cursorString, maskString);
+        free(cursorString);
+        cursor->richSource = rich_source;
+        cursor->cleanupRichSource = TRUE;
+        cursor->xhot = 0;
+        cursor->yhot = 0;
+        rfbSetCursor(kmsvnc->server, cursor);
+    }
+    else {
+        free(rich_source);
+        free(maskString);
+    }
+}
+
 static void cleanup() {
     if (kmsvnc->keymap) {
         xkb_cleanup();
@@ -115,6 +198,11 @@ static void cleanup() {
             free(kmsvnc->buf);
             kmsvnc->buf = NULL;
         }
+        if (kmsvnc->cursor_bitmap) {
+            free(kmsvnc->cursor_bitmap);
+            kmsvnc->cursor_bitmap = NULL;
+        }
+        kmsvnc->cursor_bitmap_len = 0;
         free(kmsvnc);
         kmsvnc = NULL;
     }
@@ -142,9 +230,10 @@ static struct argp_option kmsvnc_main_options[] = {
     {"fps", 0xff00, "30", 0, "Target frames per second"},
     {"disable-always-shared", 0xff01, 0, OPTION_ARG_OPTIONAL, "Do not always treat incoming connections as shared"},
     {"disable-compare-fb", 0xff02, 0, OPTION_ARG_OPTIONAL, "Do not compare pixels"},
+    {"capture-cursor", 'c', 0, OPTION_ARG_OPTIONAL, "Do not capture cursor fb"},
     {"capture-raw-fb", 0xff03, "/tmp/rawfb.bin", 0, "Capture RAW framebuffer instead of starting the vnc server (for debugging)"},
     {"va-derive", 0xff04, "off", 0, "Enable derive with vaapi"},
-    {"va-debug", 0xff05, 0, OPTION_ARG_OPTIONAL, "Print va debug message"},
+    {"debug", 0xff05, 0, OPTION_ARG_OPTIONAL, "Print debug message"},
     {"input-width", 0xff06, "0", 0, "Explicitly set input width, normally this is inferred from screen width on a single display system"},
     {"input-height", 0xff07, "0", 0, "Explicitly set input height"},
     {"input-offx", 0xff08, "0", 0, "Set input offset of x axis on a multi display system"},
@@ -206,6 +295,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 0xff02:
             kmsvnc->vnc_opt->disable_cmpfb = 1;
             break;
+        case 'c':
+            kmsvnc->capture_cursor = 1;
+            break;
         case 0xff03:
             kmsvnc->debug_capture_fb = arg;
             kmsvnc->disable_input = 1;
@@ -219,7 +311,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             break;
         case 0xff05:
-            kmsvnc->va_debug = 1;
+            kmsvnc->debug_enabled = 1;
             break;
         case 0xff06:
             int width = atoi(arg);
@@ -377,6 +469,7 @@ int main(int argc, char **argv)
     }
     rfbInitServer(kmsvnc->server);
     rfbRunEventLoop(kmsvnc->server, -1, TRUE);
+    int cursor_frame = 0;
     while (rfbIsActive(kmsvnc->server))
     {
         between_frames();
@@ -386,6 +479,18 @@ int main(int argc, char **argv)
             kmsvnc->drm->funcs->convert(kmsvnc->drm->mapped, kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height, kmsvnc->buf1);
             kmsvnc->drm->funcs->sync_end(kmsvnc->drm->prime_fd);
             update_screen_buf(kmsvnc->buf, kmsvnc->buf1, kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height);
+            if (kmsvnc->capture_cursor) {
+                cursor_frame++;
+                cursor_frame %= CURSOR_FRAMESKIP;
+                if (!cursor_frame) {
+                    char *data = NULL;
+                    int width, height;
+                    int err = drm_dump_cursor_plane(&data, &width, &height);
+                    if (!err && data) {
+                        update_vnc_cursor(data, width, height);
+                    }
+                }
+            }
         }
     }
     cleanup();

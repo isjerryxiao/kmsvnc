@@ -10,3 +10,4 @@
 void drm_cleanup();
 int drm_open();
 int drm_vendors();
+int drm_dump_cursor_plane(char **data, int *width, int *height);
