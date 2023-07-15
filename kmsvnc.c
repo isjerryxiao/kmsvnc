@@ -320,8 +320,16 @@ int main(int argc, char **argv)
             int size = kmsvnc->drm->mfb->offsets[i] + kmsvnc->drm->mfb->height * kmsvnc->drm->mfb->pitches[i];
             if (size > max_size) max_size = size;
         }
+        printf("attempt to write %d bytes\n", max_size);
         if (wfd > 0) {
-            if (kmsvnc->va) va_hwframe_to_vaapi(kmsvnc->drm->mapped);
+            if (kmsvnc->va) {
+                if (!kmsvnc->drm->mapped) kmsvnc->drm->mapped = malloc(max_size);
+                if (!kmsvnc->drm->mapped) {
+                    cleanup();
+                    KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
+                }
+                va_hwframe_to_vaapi(kmsvnc->drm->mapped);
+            }
             KMSVNC_WRITE_MAY(wfd, kmsvnc->drm->mapped, (ssize_t)max_size);
             fsync(wfd);
             printf("wrote raw frame buffer to %s\n", kmsvnc->debug_capture_fb);
