@@ -396,7 +396,7 @@ int drm_dump_cursor_plane(char **data, int *width, int *height) {
 
     size_t mmap_size = open_arg.size;
     if (mmap_size != drm->cursor_mfb->width * drm->cursor_mfb->height * BYTES_PER_PIXEL) {
-        KMSVNC_DEBUG("Cursor plane mmap_size != calculated size (%d, %d)\n", mmap_size, drm->cursor_mfb->width * drm->cursor_mfb->height * BYTES_PER_PIXEL);
+        KMSVNC_DEBUG("Cursor plane mmap_size != calculated size (%ld, %d)\n", mmap_size, drm->cursor_mfb->width * drm->cursor_mfb->height * BYTES_PER_PIXEL);
         return 1;
     }
 
