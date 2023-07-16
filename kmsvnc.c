@@ -230,7 +230,7 @@ static struct argp_option kmsvnc_main_options[] = {
     {"fps", 0xff00, "30", 0, "Target frames per second"},
     {"disable-always-shared", 0xff01, 0, OPTION_ARG_OPTIONAL, "Do not always treat incoming connections as shared"},
     {"disable-compare-fb", 0xff02, 0, OPTION_ARG_OPTIONAL, "Do not compare pixels"},
-    {"capture-cursor", 'c', 0, OPTION_ARG_OPTIONAL, "Do not capture cursor fb"},
+    {"capture-cursor", 'c', 0, OPTION_ARG_OPTIONAL, "Capture mouse cursor"},
     {"capture-raw-fb", 0xff03, "/tmp/rawfb.bin", 0, "Capture RAW framebuffer instead of starting the vnc server (for debugging)"},
     {"va-derive", 0xff04, "off", 0, "Enable derive with vaapi"},
     {"debug", 0xff05, 0, OPTION_ARG_OPTIONAL, "Print debug message"},

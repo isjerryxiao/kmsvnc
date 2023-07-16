@@ -251,6 +251,10 @@ static int drm_refresh_planes(char first_time) {
     }
     if (!drm->plane || (kmsvnc->capture_cursor && !drm->cursor_plane)) {
         drmModePlane *current_plane = NULL;
+        if (drm->plane_res) {
+            drmModeFreePlaneResources(kmsvnc->drm->plane_res);
+            drm->plane_res = NULL;
+        }
         drm->plane_res = drmModeGetPlaneResources(drm->drm_fd);
         if (!drm->plane_res)
             KMSVNC_FATAL("Failed to get plane resources: %s\n", strerror(errno));
@@ -336,11 +340,18 @@ static int drm_refresh_planes(char first_time) {
 int drm_dump_cursor_plane(char **data, int *width, int *height) {
     struct kmsvnc_drm_data *drm = kmsvnc->drm;
 
-    if (drm->cursor_plane) {
+    if (!drm->cursor_plane) {
+        drm_refresh_planes(0); // ignore error
+        if (drm->cursor_plane) {
+            printf("Using cursor plane %u\n", drm->cursor_plane->plane_id);
+        }
+    }
+    else {
+        uint32_t plane_id = drm->cursor_plane->plane_id;
         drmModeFreePlane(drm->cursor_plane);
         drm->cursor_plane = NULL;
+        drm->cursor_plane = drmModeGetPlane(drm->drm_fd, plane_id);
     }
-    drm_refresh_planes(0); // ignore error
     if (!drm->cursor_plane) {
         data = NULL;
         return 1;
@@ -351,7 +362,7 @@ int drm_dump_cursor_plane(char **data, int *width, int *height) {
         KMSVNC_DEBUG("Cursor framebuffer missing\n");
         return 1;
     }
-    
+
     if (drm->cursor_mfb->modifier != DRM_FORMAT_MOD_NONE && drm->cursor_mfb->modifier != DRM_FORMAT_MOD_LINEAR) {
         //kmsvnc->capture_cursor = 0;
         KMSVNC_DEBUG("Cursor plane modifier is not linear: %lu\n", drm->cursor_mfb->modifier);
