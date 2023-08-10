@@ -10,6 +10,7 @@
 
 #include "drm.h"
 #include "va.h"
+#include "drm_master.h"
 
 extern struct kmsvnc_data *kmsvnc;
 
@@ -154,6 +155,17 @@ void drm_sync_noop(int drmfd)
 
 void drm_cleanup() {
     if (kmsvnc->drm) {
+        if (kmsvnc->drm->gamma && kmsvnc->drm->gamma->size && kmsvnc->drm->gamma->red && kmsvnc->drm->gamma->green && kmsvnc->drm->gamma->blue) {
+            if (drmModeCrtcSetGamma(kmsvnc->drm->drm_master_fd ?: kmsvnc->drm->drm_fd, kmsvnc->drm->plane->crtc_id, kmsvnc->drm->gamma->size, kmsvnc->drm->gamma->red, kmsvnc->drm->gamma->green, kmsvnc->drm->gamma->blue)) perror("Failed to restore gamma");
+        }
+        if (kmsvnc->drm->gamma && kmsvnc->drm->gamma->red) {
+            free(kmsvnc->drm->gamma->red);
+            kmsvnc->drm->gamma->red = kmsvnc->drm->gamma->green = kmsvnc->drm->gamma->blue = NULL;
+        }
+        if (kmsvnc->drm->gamma) {
+            free(kmsvnc->drm->gamma);
+            kmsvnc->drm->gamma = NULL;
+        }
         if (kmsvnc->drm->drm_ver) {
             drmFreeVersion(kmsvnc->drm->drm_ver);
             kmsvnc->drm->drm_ver = NULL;
@@ -201,6 +213,10 @@ void drm_cleanup() {
         if (kmsvnc->drm->drm_fd > 0) {
             close(kmsvnc->drm->drm_fd);
             kmsvnc->drm->drm_fd = 0;
+        }
+        if (kmsvnc->drm->drm_master_fd > 0) {
+            close(kmsvnc->drm->drm_master_fd);
+            kmsvnc->drm->drm_master_fd = 0;
         }
         if (kmsvnc->drm->plane_res) {
             drmModeFreePlaneResources(kmsvnc->drm->plane_res);
@@ -458,6 +474,14 @@ int drm_open() {
     {
         KMSVNC_FATAL("card %s open failed: %s\n", kmsvnc->card, strerror(errno));
     }
+    if (kmsvnc->screen_blank && !drmIsMaster(drm->drm_fd)) {
+        drm->drm_master_fd = drm_get_master_fd();
+        drm->drm_master_fd = drm->drm_master_fd > 0 ? drm->drm_master_fd : 0;
+        if (kmsvnc->debug_enabled) {
+            fprintf(stderr, "not master client, master fd %d\n", drm->drm_master_fd);
+        }
+    }
+
     drm->drm_ver = drmGetVersion(drm->drm_fd);
     printf("drm driver is %s\n", drm->drm_ver->name);
 
@@ -468,6 +492,66 @@ int drm_open() {
     }
 
     if (drm_refresh_planes(1)) return 1;
+
+    if (kmsvnc->screen_blank) {
+        drm->gamma = malloc(sizeof(struct kmsvnc_drm_gamma_data));
+        if (!drm->gamma) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
+        memset(drm->gamma, 0, sizeof(struct kmsvnc_drm_gamma_data));
+        drmModeCrtc *target_crtc = drmModeGetCrtc(drm->drm_fd, drm->plane->crtc_id);
+        if (target_crtc) {
+            drm->gamma->size = (uint32_t)target_crtc->gamma_size;
+            drm->gamma->red = malloc(drm->gamma->size*sizeof(uint16_t)*3);
+            if (!drm->gamma->size) {
+                fprintf(stderr, "drm->gamma->size = %u, not setting gamma.\n", drm->gamma->size);
+            }
+            else if (!drm->gamma->red) {
+                fprintf(stderr, "memory allocation error at %s:%d\n", __FILE__, __LINE__);
+                fprintf(stderr, "not setting gamma.\n");
+            }
+            else {
+                memset(drm->gamma->red, 0, drm->gamma->size*sizeof(uint16_t)*3);
+                drm->gamma->green = drm->gamma->red + drm->gamma->size;
+                drm->gamma->blue = drm->gamma->red + drm->gamma->size*2;
+                if (kmsvnc->screen_blank_restore) {
+                    int step = 0x10000 / drm->gamma->size;
+                    for (int i = 0; i < drm->gamma->size; i++) {
+                        drm->gamma->red[i] = drm->gamma->green[i] = drm->gamma->blue[i] = step * i;
+                    }
+                }
+                else {
+                    // legacy api, but weston also uses this, so whatever
+                    drmModeCrtcGetGamma(drm->drm_fd, drm->plane->crtc_id, drm->gamma->size, drm->gamma->red, drm->gamma->green, drm->gamma->blue);
+                }
+                if (kmsvnc->debug_enabled) {
+                    for (int i = 0; i < drm->gamma->size; i++) {
+                        fprintf(stderr, "gamma: %05d %05hu %05hu %05hu\n", i, drm->gamma->red[i], drm->gamma->green[i], drm->gamma->blue[i]);
+                    }
+                }
+                uint16_t *new_gamma_red = malloc(drm->gamma->size*sizeof(uint16_t)*3);
+                if (!new_gamma_red) {
+                    fprintf(stderr, "memory allocation error at %s:%d\n", __FILE__, __LINE__);
+                    fprintf(stderr, "not setting gamma.\n");
+                }
+                else {
+                    memset(new_gamma_red, 0, drm->gamma->size*sizeof(uint16_t)*3);
+                    uint16_t *new_gamma_green = new_gamma_red + drm->gamma->size;
+                    uint16_t *new_gamma_blue = new_gamma_red + drm->gamma->size*2;
+                    if (drmModeCrtcSetGamma(drm->drm_master_fd ?: drm->drm_fd, drm->plane->crtc_id, drm->gamma->size, new_gamma_red, new_gamma_green, new_gamma_blue)) perror("Failed to set gamma");
+                }
+                if (new_gamma_red) {
+                    free(new_gamma_red);
+                    new_gamma_red = NULL;
+                }
+            }
+        }
+        else {
+            fprintf(stderr, "Did not get a crtc structure, not setting gamma.\n");
+        }
+        if (target_crtc) {
+            drmModeFreeCrtc(target_crtc);
+            target_crtc = NULL;
+        }
+    }
 
     drm->mfb = drmModeGetFB2(drm->drm_fd, drm->plane->fb_id);
     if (!drm->mfb) {

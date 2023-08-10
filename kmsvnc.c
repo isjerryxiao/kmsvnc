@@ -238,6 +238,8 @@ static struct argp_option kmsvnc_main_options[] = {
     {"input-height", 0xff07, "0", 0, "Explicitly set input height"},
     {"input-offx", 0xff08, "0", 0, "Set input offset of x axis on a multi display system"},
     {"input-offy", 0xff09, "0", 0, "Set input offset of y axis on a multi display system"},
+    {"screen-blank", 0xff0a, 0, OPTION_ARG_OPTIONAL, "Blank screen with gamma set on crtc"},
+    {"screen-blank-restore-linear", 0xff0b, 0, OPTION_ARG_OPTIONAL, "Restore linear values on exit in case of messed up gamma"},
     {"wakeup", 'w', 0, OPTION_ARG_OPTIONAL, "Move mouse to wake the system up before start"},
     {"disable-input", 'i', 0, OPTION_ARG_OPTIONAL, "Disable uinput"},
     {"desktop-name", 'n', "kmsvnc", 0, "Specify vnc desktop name"},
@@ -336,6 +338,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             if (offset_y > 0) {
                 kmsvnc->input_offy = offset_y;
             }
+            break;
+        case 0xff0a:
+            kmsvnc->screen_blank = 1;
+            break;
+        case 0xff0b:
+            kmsvnc->screen_blank_restore = 1;
             break;
         case 'w':
             kmsvnc->input_wakeup = 1;

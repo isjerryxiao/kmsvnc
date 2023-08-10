@@ -42,6 +42,8 @@ struct kmsvnc_data
     int input_height;
     int input_offx;
     int input_offy;
+    char screen_blank;
+    char screen_blank_restore;
     struct kmsvnc_drm_data *drm;
     struct kmsvnc_input_data *input;
     struct kmsvnc_keymap_data *keymap;
@@ -85,9 +87,18 @@ struct kmsvnc_drm_funcs
     void (*convert)(const char *, int, int, char *);
 };
 
+struct kmsvnc_drm_gamma_data
+{
+    uint32_t size;
+    uint16_t *red;
+    uint16_t *green;
+    uint16_t *blue;
+};
+
 struct kmsvnc_drm_data
 {
     int drm_fd;
+    int drm_master_fd;
     drmVersionPtr drm_ver;
     int prime_fd;
     drmModePlane *plane;
@@ -95,7 +106,7 @@ struct kmsvnc_drm_data
     drmModePlaneRes *plane_res;
     drmModeFB2 *mfb;
     drmModeFB2 *cursor_mfb;
-    u_int32_t plane_id;
+    uint32_t plane_id;
     int mmap_fd;
     size_t mmap_size;
     off_t mmap_offset;
@@ -113,6 +124,7 @@ struct kmsvnc_drm_data
     size_t kms_cpy_tmp_buf_len;
     char *kms_cursor_buf;
     size_t kms_cursor_buf_len;
+    struct kmsvnc_drm_gamma_data *gamma;
 };
 
 struct kmsvnc_va_data

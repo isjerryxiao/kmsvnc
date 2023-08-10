@@ -19,7 +19,7 @@ IF(NOT HAVE_LINUX_API_HEADERS)
   message(FATAL_ERROR "linux-api-headers not found")
 ENDIF()
 
-add_executable(kmsvnc kmsvnc.c drm.c input.c keymap.c va.c)
+add_executable(kmsvnc kmsvnc.c drm.c input.c keymap.c va.c drm_master.c)
 target_include_directories(kmsvnc PUBLIC
   ${LIBDRM_INCLUDEDIR}
   ${LIBDRM_INCLUDEDIR}/libdrm
