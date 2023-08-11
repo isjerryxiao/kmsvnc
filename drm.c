@@ -474,6 +474,9 @@ int drm_open() {
     {
         KMSVNC_FATAL("card %s open failed: %s\n", kmsvnc->card, strerror(errno));
     }
+    if (!kmsvnc->screen_blank && drmIsMaster(drm->drm_fd)) {
+        if (drmDropMaster(drm->drm_fd)) fprintf(stderr, "Failed to drop master");
+    }
     if (kmsvnc->screen_blank && !drmIsMaster(drm->drm_fd)) {
         drm->drm_master_fd = drm_get_master_fd();
         drm->drm_master_fd = drm->drm_master_fd > 0 ? drm->drm_master_fd : 0;
