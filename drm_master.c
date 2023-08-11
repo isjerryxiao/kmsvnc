@@ -27,7 +27,6 @@ static inline int clone_fd(pid_t pid, int target_fd) {
 }
 
 static inline int cmp_fds(pid_t pid, const char *drm_pth) {
-    if (pid == 1) return -1;
     char path[PATH_MAX+1];
     snprintf(path, PATH_MAX+1, "/proc/%d/fd", pid);
 
@@ -48,9 +47,9 @@ static inline int cmp_fds(pid_t pid, const char *drm_pth) {
                         int cloned = clone_fd(pid, fd);
                         if (cloned > 0 && drmIsMaster(cloned)) {
                             ret = cloned;
-                            //if (kmsvnc->debug_enabled) {
+                            if (kmsvnc->debug_enabled) {
                                 fprintf(stderr, "found drm master pid=%d, fd=%d, cloned=%d\n", pid, fd, cloned);
-                            //}
+                            }
                         }
                         else {
                             if (cloned > 0) close(cloned);
@@ -76,7 +75,7 @@ int drm_get_master_fd() {
     int count = scandir("/proc", &proclist, NULL, versionsort);
     int ret = -1;
     if (count >= 0) {
-        for (int n = count - 1; n > 0; n--) {
+        for (int n = 0; n < count; n++) {
             if (ret == -1 && proclist[n]->d_type == DT_DIR) {
                 pid_t pid = (pid_t)atoi(proclist[n]->d_name);
                 if (pid > 0) {

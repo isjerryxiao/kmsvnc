@@ -208,6 +208,7 @@ static void cleanup() {
     }
 }
 
+void signal_handler_noop(int signum){}
 void signal_handler(int signum){
     if (kmsvnc->shutdown) {
         return;
@@ -436,6 +437,20 @@ int main(int argc, char **argv)
         }
         else {
             fprintf(stderr, "open file %s failed, %s\n", kmsvnc->debug_capture_fb, strerror(errno));
+        }
+        if (kmsvnc->screen_blank) {
+            sigset_t signal_set;
+            int sig;
+            sigemptyset(&signal_set);
+            signal(SIGHUP, &signal_handler_noop);
+            signal(SIGINT, &signal_handler_noop);
+            signal(SIGTERM, &signal_handler_noop);
+            sigaddset(&signal_set, SIGHUP);
+            sigaddset(&signal_set, SIGINT);
+            sigaddset(&signal_set, SIGTERM);
+            fprintf(stderr, "blanking screen...\n");
+            sigwait(&signal_set, &sig);
+            fprintf(stderr, "got sig %d\n", sig);
         }
         cleanup();
         return 0;
