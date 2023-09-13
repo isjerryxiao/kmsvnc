@@ -34,7 +34,7 @@ static void convert_bgra_to_rgba(const char *in, int width, int height, char *bu
 {
     memcpy(buff, in, width * height * BYTES_PER_PIXEL);
     for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
-        uint32_t pixdata = htonl(*((uint32_t*)(kmsvnc->drm->kms_convert_buf + i)));
+        uint32_t pixdata = htonl(*((uint32_t*)(buff + i)));
         buff[i+0] = (pixdata & 0x0000ff00) >> 8;
         buff[i+2] = (pixdata & 0xff000000) >> 24;
     }
