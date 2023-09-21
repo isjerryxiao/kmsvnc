@@ -14,7 +14,6 @@ steps:
 
 trigger:
   branch:
-  - master
   - dev
   event:
     exclude:

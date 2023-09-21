@@ -294,6 +294,7 @@ int va_init() {
         if ((s = vaDeriveImage(va->dpy, va->surface_id, va->image)) == VA_STATUS_SUCCESS) {
             char found = 0;
             for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(format_to_try); i++) {
+                if (format_to_try[i].fmt == NULL) continue;
                 if (va->image->format.fourcc == format_to_try[i].fmt->fourcc) {
                     found = 1;
                     break;
