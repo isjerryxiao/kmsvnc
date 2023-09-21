@@ -27,12 +27,16 @@ static int check_pixfmt_non_vaapi() {
 
 static void convert_copy(const char *in, int width, int height, char *buff)
 {
-    memcpy(buff, in, width * height * BYTES_PER_PIXEL);
+    if (likely(in != buff)) {
+        memcpy(buff, in, width * height * BYTES_PER_PIXEL);
+    }
 }
 
 static void convert_bgra_to_rgba(const char *in, int width, int height, char *buff)
 {
-    memcpy(buff, in, width * height * BYTES_PER_PIXEL);
+    if (likely(in != buff)) {
+        memcpy(buff, in, width * height * BYTES_PER_PIXEL);
+    }
     for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
         uint32_t pixdata = htonl(*((uint32_t*)(buff + i)));
         buff[i+0] = (pixdata & 0x0000ff00) >> 8;
@@ -97,30 +101,36 @@ void convert_intel_x_tiled_kmsbuf(const char *in, int width, int height, char *b
 }
 
 static void convert_vaapi(const char *in, int width, int height, char *buff) {
+    va_hwframe_to_vaapi(buff);
     if (
-        (!kmsvnc->va->selected_fmt->byte_order && (KMSVNC_FOURCC_TO_INT('R','G','B',0) & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT('R','G','B',0)) ||
-        (kmsvnc->va->selected_fmt->byte_order && (KMSVNC_FOURCC_TO_INT(0,'B','G','R') & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT(0,'B','G','R'))
+        !kmsvnc->va->selected_fmt->byte_order &&
+        (KMSVNC_FOURCC_TO_INT('R','G','B',0) & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT('R','G','B',0)
+    ) {}
+    else if (
+        kmsvnc->va->selected_fmt->byte_order &&
+        (KMSVNC_FOURCC_TO_INT(0,'B','G','R') & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT(0,'B','G','R')
     ) {
-        va_hwframe_to_vaapi(buff);
+        for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
+            uint32_t *pixdata = (uint32_t*)(buff + i);
+            *pixdata = __builtin_bswap32(*pixdata);
+        }
     }
     else {
-        if (convert_buf_allocate(width * height * BYTES_PER_PIXEL)) return;
-        va_hwframe_to_vaapi(kmsvnc->drm->kms_convert_buf);
         // is 30 depth?
         if (kmsvnc->va->selected_fmt->depth == 30) {
             for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
                 // ensure little endianess
-                uint32_t pixdata = __builtin_bswap32(htonl(*((uint32_t*)(kmsvnc->drm->kms_convert_buf + i))));
-                kmsvnc->drm->kms_convert_buf[i] = (pixdata & 0x3ff00000) >> 20 >> 2;
-                kmsvnc->drm->kms_convert_buf[i+1] = (pixdata & 0xffc00) >> 10 >> 2;
-                kmsvnc->drm->kms_convert_buf[i+2] = (pixdata & 0x3ff) >> 2;
+                uint32_t pixdata = __builtin_bswap32(htonl(*((uint32_t*)(buff + i))));
+                buff[i] = (pixdata & 0x3ff00000) >> 20 >> 2;
+                buff[i+1] = (pixdata & 0xffc00) >> 10 >> 2;
+                buff[i+2] = (pixdata & 0x3ff) >> 2;
             }
         }
         else {
             // handle ihd and mesa byte order quirk
             if (kmsvnc->va->selected_fmt->byte_order) {
                 for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
-                    uint32_t *pixdata = (uint32_t*)(kmsvnc->drm->kms_convert_buf + i);
+                    uint32_t *pixdata = (uint32_t*)(buff + i);
                     *pixdata = __builtin_bswap32(*pixdata);
                 }
             }
@@ -128,20 +138,18 @@ static void convert_vaapi(const char *in, int width, int height, char *buff) {
         // is xrgb?
         if ((kmsvnc->va->selected_fmt->blue_mask | kmsvnc->va->selected_fmt->red_mask) < 0x1000000) {
             for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
-                uint32_t *pixdata = (uint32_t*)(kmsvnc->drm->kms_convert_buf + i);
+                uint32_t *pixdata = (uint32_t*)(buff + i);
                 *pixdata = ntohl(htonl(*pixdata) << 8);
             }
         }
         // is bgrx?
         if (kmsvnc->va->selected_fmt->blue_mask > kmsvnc->va->selected_fmt->red_mask) {
             for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
-                uint32_t pixdata = htonl(*((uint32_t*)(kmsvnc->drm->kms_convert_buf + i)));
+                uint32_t pixdata = htonl(*((uint32_t*)(buff + i)));
                 buff[i+0] = (pixdata & 0x0000ff00) >> 8;
                 buff[i+2] = (pixdata & 0xff000000) >> 24;
             }
         }
-        // rgbx now
-        memcpy(buff, kmsvnc->drm->kms_convert_buf, width * height * BYTES_PER_PIXEL);
     }
 }
 

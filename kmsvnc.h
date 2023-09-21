@@ -147,3 +147,6 @@ struct kmsvnc_va_data
 #define KMSVNC_WRITE_MAY(fd,buf,count) do { ssize_t e = write((fd), (buf), (count)); if (e != (count)) fprintf(stderr, "should write %ld bytes, actually wrote %ld, on line %d\n", (count), e, __LINE__); } while (0)
 
 #define KMSVNC_DEBUG(...) do{ if (kmsvnc->debug_enabled) fprintf(stdout, __VA_ARGS__); } while(0)
+
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
