@@ -40,6 +40,8 @@ static inline int cmp_fds(pid_t pid, const char *drm_pth) {
                 char link_pth[PATH_MAX+1];
                 char real_pth[PATH_MAX+1];
                 #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wpragmas"
+                #pragma GCC diagnostic ignored "-Wunknown-warning-option"
                 #pragma GCC diagnostic ignored "-Wformat-truncation"
                 snprintf(link_pth, PATH_MAX+1, "%s/%s", path, fdlist[n]->d_name);
                 #pragma GCC diagnostic pop

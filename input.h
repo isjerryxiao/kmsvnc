@@ -7,8 +7,8 @@
 #define UINPUT_ABS_MAX INT16_MAX
 #define UINPUT_MAX_KEY 256
 
-#define INP_IOCTL_MUST(...) do{ int e; if (e = ioctl(__VA_ARGS__)) KMSVNC_FATAL("uinput ioctl error %d on line %d\n", e, __LINE__); } while(0)
-#define INP_IOCTL_MAY(...) do{ int e; if (e = ioctl(__VA_ARGS__)) fprintf(stderr, "uinput ioctl error %d on line %d\n", e, __LINE__); } while(0)
+#define INP_IOCTL_MUST(...) do{ int e; if ((e = ioctl(__VA_ARGS__))) KMSVNC_FATAL("uinput ioctl error %d on line %d\n", e, __LINE__); } while(0)
+#define INP_IOCTL_MAY(...) do{ int e; if ((e = ioctl(__VA_ARGS__))) fprintf(stderr, "uinput ioctl error %d on line %d\n", e, __LINE__); } while(0)
 
 void uinput_cleanup();
 int uinput_init();

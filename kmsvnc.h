@@ -45,7 +45,6 @@ struct kmsvnc_data
     int input_offy;
     char screen_blank;
     char screen_blank_restore;
-    char trust_va_format;
     struct kmsvnc_drm_data *drm;
     struct kmsvnc_input_data *input;
     struct kmsvnc_keymap_data *keymap;

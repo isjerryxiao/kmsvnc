@@ -97,7 +97,10 @@ void convert_intel_x_tiled_kmsbuf(const char *in, int width, int height, char *b
 }
 
 static void convert_vaapi(const char *in, int width, int height, char *buff) {
-    if ((KMSVNC_FOURCC_TO_INT('R','G','B', 0) & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT('R','G','B', 0)) {
+    if (
+        (!kmsvnc->va->selected_fmt->byte_order && (KMSVNC_FOURCC_TO_INT('R','G','B',0) & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT('R','G','B',0)) ||
+        (kmsvnc->va->selected_fmt->byte_order && (KMSVNC_FOURCC_TO_INT(0,'B','G','R') & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT(0,'B','G','R'))
+    ) {
         va_hwframe_to_vaapi(buff);
     }
     else {
@@ -111,6 +114,15 @@ static void convert_vaapi(const char *in, int width, int height, char *buff) {
                 kmsvnc->drm->kms_convert_buf[i] = (pixdata & 0x3ff00000) >> 20 >> 2;
                 kmsvnc->drm->kms_convert_buf[i+1] = (pixdata & 0xffc00) >> 10 >> 2;
                 kmsvnc->drm->kms_convert_buf[i+2] = (pixdata & 0x3ff) >> 2;
+            }
+        }
+        else {
+            // handle ihd and mesa byte order quirk
+            if (kmsvnc->va->selected_fmt->byte_order) {
+                for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
+                    uint32_t *pixdata = (uint32_t*)(kmsvnc->drm->kms_convert_buf + i);
+                    *pixdata = __builtin_bswap32(*pixdata);
+                }
             }
         }
         // is xrgb?

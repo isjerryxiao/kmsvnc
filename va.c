@@ -83,13 +83,14 @@ struct va_fmt_data {
     uint32_t blue_mask;
     uint32_t green_mask;
     uint32_t red_mask;
+    uint32_t byte_order;
 };
 
 static VAImageFormat* vaImgFmt_from_vaFmtData(struct va_fmt_data* data) {
     static VAImageFormat ret = {0};
     VAImageFormat fmt = {
         .fourcc = data->va_fourcc,
-        .byte_order = VA_LSB_FIRST,
+        .byte_order = data->byte_order,
         .bits_per_pixel = 32,
         .depth = data->depth,
         .blue_mask = data->blue_mask,
@@ -290,26 +291,45 @@ int va_init() {
     }
 
     struct va_fmt_data format_to_try[] = {
-        {KMSVNC_FOURCC_TO_INT('R','G','B','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff00, 0xff0000, 0xff000000},
-        {KMSVNC_FOURCC_TO_INT('R','G','B','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff00, 0xff0000, 0xff000000},
-        {KMSVNC_FOURCC_TO_INT('X','R','G','B'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff, 0xff00, 0xff0000},
-        {KMSVNC_FOURCC_TO_INT('A','R','G','B'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff, 0xff00, 0xff0000},
+        {KMSVNC_FOURCC_TO_INT('R','G','B','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff00, 0xff0000, 0xff000000, 0},
+        {KMSVNC_FOURCC_TO_INT('R','G','B','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff00, 0xff0000, 0xff000000, 0},
 
-        {KMSVNC_FOURCC_TO_INT('B','G','R','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff000000, 0xff0000, 0xff00},
-        {KMSVNC_FOURCC_TO_INT('B','G','R','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff000000, 0xff0000, 0xff00},
-        {KMSVNC_FOURCC_TO_INT('X','B','G','R'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff0000, 0xff00, 0xff},
-        {KMSVNC_FOURCC_TO_INT('A','B','G','R'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff0000, 0xff00, 0xff},
+        {KMSVNC_FOURCC_TO_INT('X','B','G','R'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff0000, 0xff00, 0xff, 0},
+        {KMSVNC_FOURCC_TO_INT('A','B','G','R'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff0000, 0xff00, 0xff, 0},
 
-        {KMSVNC_FOURCC_TO_INT('X','R','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30, 0x3ff, 0xffc00, 0x3ff00000},
-        {KMSVNC_FOURCC_TO_INT('A','R','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30, 0x3ff, 0xffc00, 0x3ff00000},
-        {KMSVNC_FOURCC_TO_INT('X','B','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30, 0x3ff00000, 0xffc00, 0x3ff},
-        {KMSVNC_FOURCC_TO_INT('A','B','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30, 0x3ff00000, 0xffc00, 0x3ff},
+        {KMSVNC_FOURCC_TO_INT('X','R','G','B'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff, 0xff00, 0xff0000, 0},
+        {KMSVNC_FOURCC_TO_INT('A','R','G','B'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff, 0xff00, 0xff0000, 0},
+
+        {KMSVNC_FOURCC_TO_INT('B','G','R','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff000000, 0xff0000, 0xff00, 0},
+        {KMSVNC_FOURCC_TO_INT('B','G','R','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff000000, 0xff0000, 0xff00, 0},
+
+
+        {KMSVNC_FOURCC_TO_INT('X','R','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30, 0x3ff, 0xffc00, 0x3ff00000, 0},
+        {KMSVNC_FOURCC_TO_INT('A','R','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30, 0x3ff, 0xffc00, 0x3ff00000, 0},
+        {KMSVNC_FOURCC_TO_INT('X','B','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30, 0x3ff00000, 0xffc00, 0x3ff, 0},
+        {KMSVNC_FOURCC_TO_INT('A','B','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30, 0x3ff00000, 0xffc00, 0x3ff, 0},
     };
 
     for (int i = 0; i < va->img_fmt_count; i++) {
         for (int j = 0; j < KMSVNC_ARRAY_ELEMENTS(format_to_try); j++) {
             if (va->img_fmts[i].fourcc == format_to_try[j].va_fourcc) {
-                format_to_try[j].fmt = va->img_fmts + i;
+                if (
+                    va->img_fmts[i].blue_mask == format_to_try[j].blue_mask &&
+                    va->img_fmts[i].green_mask == format_to_try[j].green_mask &&
+                    va->img_fmts[i].red_mask == format_to_try[j].red_mask
+                ) {
+                    format_to_try[j].fmt = va->img_fmts + i;
+                }
+                else if (
+                    format_to_try[j].depth != 30 &&
+                    va->img_fmts[i].blue_mask == __builtin_bswap32(format_to_try[j].blue_mask) &&
+                    va->img_fmts[i].green_mask == __builtin_bswap32(format_to_try[j].green_mask) &&
+                    va->img_fmts[i].red_mask == __builtin_bswap32(format_to_try[j].red_mask)
+                ) {
+                    // mesa quirk: mesa fourcc and pixel data is lsb_first for RGB32 formats, msb_first for RGB32_10 formats
+                    format_to_try[j].byte_order = 1u;
+                    format_to_try[j].fmt = va->img_fmts + i;
+                }
             }
         }
     }
@@ -380,19 +400,9 @@ int va_init() {
     }
     printf("got vaapi %simage:\n", va->derive_enabled ? "derive " : "");
     print_va_image_fmt(&va->image->format);
-    if (
-        va->selected_fmt->depth != va->image->format.depth ||
-        va->selected_fmt->blue_mask != va->image->format.blue_mask ||
-        va->selected_fmt->green_mask != va->image->format.green_mask ||
-        va->selected_fmt->red_mask != va->image->format.red_mask ||
-        va->selected_fmt->fourcc != va->image->format.fourcc
-    ) {
-        fprintf(stderr, "differs from selected image format\n");
+    if (kmsvnc->debug_enabled) {
+        fprintf(stderr, "selected image format:\n");
         print_va_image_fmt(va->selected_fmt);
-        if (kmsvnc->trust_va_format) {
-            fprintf(stderr, "trust VAImageFormat returned by vaapi implementation unconditionally as requested\n");
-            va->selected_fmt = &va->image->format;
-        }
     }
     return 0;
 }
