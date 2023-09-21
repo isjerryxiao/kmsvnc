@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -127,7 +129,7 @@ static inline void update_vnc_cursor(char *data, int width, int height) {
         if (!kmsvnc->cursor_bitmap) return;
         kmsvnc->cursor_bitmap_len = rwidth * rheight * BYTES_PER_PIXEL;
     }
-    char *rich_source = malloc(rwidth * rheight * BYTES_PER_PIXEL);
+    unsigned char *rich_source = malloc(rwidth * rheight * BYTES_PER_PIXEL);
     if (!rich_source) return;
     char *maskString = malloc(rwidth * rheight);
     if (!maskString) {
@@ -241,6 +243,7 @@ static struct argp_option kmsvnc_main_options[] = {
     {"input-offy", 0xff09, "0", 0, "Set input offset of y axis on a multi display system"},
     {"screen-blank", 0xff0a, 0, OPTION_ARG_OPTIONAL, "Blank screen with gamma set on crtc"},
     {"screen-blank-restore-linear", 0xff0b, 0, OPTION_ARG_OPTIONAL, "Restore linear values on exit in case of messed up gamma"},
+    {"trust-va-format", 0xff0c, 0, OPTION_ARG_OPTIONAL, "trust VAImageFormat returned by vaapi implementation unconditionally"},
     {"wakeup", 'w', 0, OPTION_ARG_OPTIONAL, "Move mouse to wake the system up before start"},
     {"disable-input", 'i', 0, OPTION_ARG_OPTIONAL, "Disable uinput"},
     {"desktop-name", 'n', "kmsvnc", 0, "Specify vnc desktop name"},
@@ -272,24 +275,28 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             kmsvnc->vnc_opt->bind6 = arg;
             break;
         case 'p':
-            int port = atoi(arg);
-            if (port > 0 && port < 65536) {
-                kmsvnc->vnc_opt->port = port;
-            }
-            else {
-                argp_error(state, "invalid port %s", arg);
+            {
+                int port = atoi(arg);
+                if (port > 0 && port < 65536) {
+                    kmsvnc->vnc_opt->port = port;
+                }
+                else {
+                    argp_error(state, "invalid port %s", arg);
+                }
             }
             break;
         case '4':
             kmsvnc->vnc_opt->disable_ipv6 = 1;
             break;
         case 0xff00:
-            int fps = atoi(arg);
-            if (fps > 0 && fps < 1000) {
-                kmsvnc->vnc_opt->sleep_ns = NS_IN_S / fps;
-            }
-            else {
-                argp_error(state, "invalid fps %s", arg);
+            {
+                int fps = atoi(arg);
+                if (fps > 0 && fps < 1000) {
+                    kmsvnc->vnc_opt->sleep_ns = NS_IN_S / fps;
+                }
+                else {
+                    argp_error(state, "invalid fps %s", arg);
+                }
             }
             break;
         case 0xff01:
@@ -317,27 +324,35 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             kmsvnc->debug_enabled = 1;
             break;
         case 0xff06:
-            int width = atoi(arg);
-            if (width > 0) {
-                kmsvnc->input_width = width;
+            {
+                int width = atoi(arg);
+                if (width > 0) {
+                    kmsvnc->input_width = width;
+                }
             }
             break;
         case 0xff07:
-            int height = atoi(arg);
-            if (height > 0) {
-                kmsvnc->input_height = height;
+            {
+                int height = atoi(arg);
+                if (height > 0) {
+                    kmsvnc->input_height = height;
+                }
             }
             break;
         case 0xff08:
-            int offset_x = atoi(arg);
-            if (offset_x > 0) {
-                kmsvnc->input_offx = offset_x;
+            {
+                int offset_x = atoi(arg);
+                if (offset_x > 0) {
+                    kmsvnc->input_offx = offset_x;
+                }
             }
             break;
         case 0xff09:
-            int offset_y = atoi(arg);
-            if (offset_y > 0) {
-                kmsvnc->input_offy = offset_y;
+            {
+                int offset_y = atoi(arg);
+                if (offset_y > 0) {
+                    kmsvnc->input_offy = offset_y;
+                }
             }
             break;
         case 0xff0a:
@@ -345,6 +360,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case 0xff0b:
             kmsvnc->screen_blank_restore = 1;
+            break;
+        case 0xff0c:
+            kmsvnc->trust_va_format = 1;
             break;
         case 'w':
             kmsvnc->input_wakeup = 1;

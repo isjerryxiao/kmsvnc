@@ -97,14 +97,14 @@ void convert_intel_x_tiled_kmsbuf(const char *in, int width, int height, char *b
 }
 
 static void convert_vaapi(const char *in, int width, int height, char *buff) {
-    if (KMSVNC_FOURCC_TO_INT('R','G','B', 0) & kmsvnc->va->image->format.fourcc == KMSVNC_FOURCC_TO_INT('R','G','B', 0)) {
+    if ((KMSVNC_FOURCC_TO_INT('R','G','B', 0) & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT('R','G','B', 0)) {
         va_hwframe_to_vaapi(buff);
     }
     else {
         if (convert_buf_allocate(width * height * BYTES_PER_PIXEL)) return;
         va_hwframe_to_vaapi(kmsvnc->drm->kms_convert_buf);
         // is 30 depth?
-        if (kmsvnc->va->image->format.depth == 30) {
+        if (kmsvnc->va->selected_fmt->depth == 30) {
             for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
                 // ensure little endianess
                 uint32_t pixdata = __builtin_bswap32(htonl(*((uint32_t*)(kmsvnc->drm->kms_convert_buf + i))));
@@ -114,14 +114,14 @@ static void convert_vaapi(const char *in, int width, int height, char *buff) {
             }
         }
         // is xrgb?
-        if ((kmsvnc->va->image->format.blue_mask | kmsvnc->va->image->format.red_mask) < 0x1000000) {
+        if ((kmsvnc->va->selected_fmt->blue_mask | kmsvnc->va->selected_fmt->red_mask) < 0x1000000) {
             for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
                 uint32_t *pixdata = (uint32_t*)(kmsvnc->drm->kms_convert_buf + i);
                 *pixdata = ntohl(htonl(*pixdata) << 8);
             }
         }
         // is bgrx?
-        if (kmsvnc->va->image->format.blue_mask > kmsvnc->va->image->format.red_mask) {
+        if (kmsvnc->va->selected_fmt->blue_mask > kmsvnc->va->selected_fmt->red_mask) {
             for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
                 uint32_t pixdata = htonl(*((uint32_t*)(kmsvnc->drm->kms_convert_buf + i)));
                 buff[i+0] = (pixdata & 0x0000ff00) >> 8;

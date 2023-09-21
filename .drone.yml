@@ -6,11 +6,12 @@ steps:
 - name: build
   image: archlinux:latest
   commands:
-  - pacman -Syu --noconfirm --needed base-devel libvncserver libxkbcommon libdrm libva git cmake
-  - mkdir build
-  - cd build
-  - cmake ..
-  - make
+  - pacman -Syu --noconfirm --needed base-devel libvncserver libxkbcommon libdrm libva git cmake clang
+  - export CFLAGS="-pipe -fno-plt -fexceptions -fstack-clash-protection -fcf-protection -Wp,-D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security"
+  - CC=gcc cmake -B gcc-out
+  - cmake --build gcc-out
+  - CC=clang cmake -B clang-out
+  - cmake --build clang-out
 
 trigger:
   branch:

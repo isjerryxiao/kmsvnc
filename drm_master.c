@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+
 #include <stdio.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -38,9 +39,15 @@ static inline int cmp_fds(pid_t pid, const char *drm_pth) {
             if (ret == -1 && fdlist[n]->d_type == DT_LNK) {
                 char link_pth[PATH_MAX+1];
                 char real_pth[PATH_MAX+1];
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wformat-truncation"
                 snprintf(link_pth, PATH_MAX+1, "%s/%s", path, fdlist[n]->d_name);
+                #pragma GCC diagnostic pop
                 memset(real_pth, 0, PATH_MAX+1);
+                #pragma GCC diagnostic push
+                #pragma GCC diagnostic ignored "-Wunused-result"
                 realpath(link_pth, real_pth);
+                #pragma GCC diagnostic pop
                 if (!strncmp(real_pth, drm_pth, PATH_MAX)) {
                     int fd = atoi(fdlist[n]->d_name);
                     if (fd > 0) {
@@ -69,7 +76,10 @@ static inline int cmp_fds(pid_t pid, const char *drm_pth) {
 int drm_get_master_fd() {
     char drm_pth[PATH_MAX+1];
     memset(drm_pth, 0, PATH_MAX+1);
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-result"
     realpath(kmsvnc->card, drm_pth);
+    #pragma GCC diagnostic pop
 
     struct dirent **proclist;
     int count = scandir("/proc", &proclist, NULL, versionsort);
