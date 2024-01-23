@@ -10,7 +10,25 @@
 
 #include "drm.h"
 #include "va.h"
-#include "drm_master.h"
+
+#ifndef DISABLE_KMSVNC_SCREEN_BLANK
+    #include "drm_master.h"
+#endif
+
+#ifndef fourcc_mod_is_vendor
+    #define fourcc_mod_is_vendor(modifier, vendor) \
+            (fourcc_mod_get_vendor(modifier) == DRM_FORMAT_MOD_VENDOR_## vendor)
+#endif
+#ifdef DISABLE_KMSVNC_drmGetFormatName
+    static char* drmGetFormatName(uint32_t data) {
+        char *name = "missing drmGetFormatName";
+        char *out = malloc(strlen(name)+1);
+        if (out) {
+            memcpy(out, name, strlen(name)+1);
+        }
+        return out;
+    }
+#endif
 
 extern struct kmsvnc_data *kmsvnc;
 
@@ -165,6 +183,7 @@ void drm_sync_noop(int drmfd)
 
 void drm_cleanup() {
     if (kmsvnc->drm) {
+#ifndef DISABLE_KMSVNC_SCREEN_BLANK
         if (kmsvnc->drm->gamma && kmsvnc->drm->gamma->size && kmsvnc->drm->gamma->red && kmsvnc->drm->gamma->green && kmsvnc->drm->gamma->blue) {
             if (drmModeCrtcSetGamma(kmsvnc->drm->drm_master_fd ?: kmsvnc->drm->drm_fd, kmsvnc->drm->plane->crtc_id, kmsvnc->drm->gamma->size, kmsvnc->drm->gamma->red, kmsvnc->drm->gamma->green, kmsvnc->drm->gamma->blue)) perror("Failed to restore gamma");
         }
@@ -176,6 +195,7 @@ void drm_cleanup() {
             free(kmsvnc->drm->gamma);
             kmsvnc->drm->gamma = NULL;
         }
+#endif
         if (kmsvnc->drm->drm_ver) {
             drmFreeVersion(kmsvnc->drm->drm_ver);
             kmsvnc->drm->drm_ver = NULL;
@@ -487,6 +507,7 @@ int drm_open() {
     if (!kmsvnc->screen_blank && drmIsMaster(drm->drm_fd)) {
         if (drmDropMaster(drm->drm_fd)) fprintf(stderr, "Failed to drop master");
     }
+#ifndef DISABLE_KMSVNC_SCREEN_BLANK
     if (kmsvnc->screen_blank && !drmIsMaster(drm->drm_fd)) {
         drm->drm_master_fd = drm_get_master_fd();
         drm->drm_master_fd = drm->drm_master_fd > 0 ? drm->drm_master_fd : 0;
@@ -494,6 +515,7 @@ int drm_open() {
             fprintf(stderr, "not master client, master fd %d\n", drm->drm_master_fd);
         }
     }
+#endif
 
     drm->drm_ver = drmGetVersion(drm->drm_fd);
     printf("drm driver is %s\n", drm->drm_ver->name);
@@ -506,6 +528,7 @@ int drm_open() {
 
     if (drm_refresh_planes(1)) return 1;
 
+#ifndef DISABLE_KMSVNC_SCREEN_BLANK
     if (kmsvnc->screen_blank) {
         drm->gamma = malloc(sizeof(struct kmsvnc_drm_gamma_data));
         if (!drm->gamma) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
@@ -565,6 +588,7 @@ int drm_open() {
             target_crtc = NULL;
         }
     }
+#endif
 
     drm->mfb = drmModeGetFB2(drm->drm_fd, drm->plane->fb_id);
     if (!drm->mfb) {

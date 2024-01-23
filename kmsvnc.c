@@ -241,8 +241,10 @@ static struct argp_option kmsvnc_main_options[] = {
     {"input-height", 0xff07, "0", 0, "Explicitly set input height"},
     {"input-offx", 0xff08, "0", 0, "Set input offset of x axis on a multi display system"},
     {"input-offy", 0xff09, "0", 0, "Set input offset of y axis on a multi display system"},
+#ifndef DISABLE_KMSVNC_SCREEN_BLANK
     {"screen-blank", 0xff0a, 0, OPTION_ARG_OPTIONAL, "Blank screen with gamma set on crtc"},
     {"screen-blank-restore-linear", 0xff0b, 0, OPTION_ARG_OPTIONAL, "Restore linear values on exit in case of messed up gamma"},
+#endif
     {"va-byteorder-swap", 0xff0c, 0, OPTION_ARG_OPTIONAL, "Force swap vaapi image rgb byteorder"},
     {"wakeup", 'w', 0, OPTION_ARG_OPTIONAL, "Move mouse to wake the system up before start"},
     {"disable-input", 'i', 0, OPTION_ARG_OPTIONAL, "Disable uinput"},
