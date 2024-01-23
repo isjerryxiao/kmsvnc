@@ -45,6 +45,7 @@ struct kmsvnc_data
     int input_offy;
     char screen_blank;
     char screen_blank_restore;
+    char va_byteorder_swap;
     struct kmsvnc_drm_data *drm;
     struct kmsvnc_input_data *input;
     struct kmsvnc_keymap_data *keymap;
@@ -139,6 +140,7 @@ struct kmsvnc_va_data
     VAImageFormat* img_fmts;
     int img_fmt_count;
     VAImageFormat* selected_fmt;
+    const char *vendor_string;
 };
 
 #define KMSVNC_FATAL(...) do{ fprintf(stderr, __VA_ARGS__); return 1; } while(0)

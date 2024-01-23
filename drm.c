@@ -103,18 +103,8 @@ void convert_intel_x_tiled_kmsbuf(const char *in, int width, int height, char *b
 static void convert_vaapi(const char *in, int width, int height, char *buff) {
     va_hwframe_to_vaapi(buff);
     if (
-        !kmsvnc->va->selected_fmt->byte_order &&
         (KMSVNC_FOURCC_TO_INT('R','G','B',0) & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT('R','G','B',0)
     ) {}
-    else if (
-        kmsvnc->va->selected_fmt->byte_order &&
-        (KMSVNC_FOURCC_TO_INT(0,'B','G','R') & kmsvnc->va->selected_fmt->fourcc) == KMSVNC_FOURCC_TO_INT(0,'B','G','R')
-    ) {
-        for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
-            uint32_t *pixdata = (uint32_t*)(buff + i);
-            *pixdata = __builtin_bswap32(*pixdata);
-        }
-    }
     else {
         // is 30 depth?
         if (kmsvnc->va->selected_fmt->depth == 30) {
@@ -127,8 +117,8 @@ static void convert_vaapi(const char *in, int width, int height, char *buff) {
             }
         }
         else {
-            // handle ihd and mesa byte order quirk
-            if (kmsvnc->va->selected_fmt->byte_order) {
+            // actually, does anyone use this?
+            if (!kmsvnc->va->selected_fmt->byte_order) {
                 for (int i = 0; i < width * height * BYTES_PER_PIXEL; i += BYTES_PER_PIXEL) {
                     uint32_t *pixdata = (uint32_t*)(buff + i);
                     *pixdata = __builtin_bswap32(*pixdata);

@@ -6,6 +6,7 @@
 #include <va/va_drm.h>
 #include <va/va_drmcommon.h>
 #include <fcntl.h>
+#include <string.h>
 
 #include "va.h"
 #include "kmsvnc.h"
@@ -37,6 +38,9 @@ void va_cleanup() {
         if (kmsvnc->va->dpy) {
             VA_MAY(vaTerminate(kmsvnc->va->dpy));
             kmsvnc->va->dpy = NULL;
+        }
+        if (kmsvnc->va->vendor_string) {
+            kmsvnc->va->vendor_string = NULL;
         }
         free(kmsvnc->va);
         kmsvnc->va = NULL;
@@ -80,26 +84,17 @@ struct va_fmt_data {
     char is_alpha;
     uint32_t va_rt_format;
     uint32_t depth;
-    uint32_t blue_mask;
-    uint32_t green_mask;
-    uint32_t red_mask;
-    uint32_t byte_order;
 };
 
-static VAImageFormat* vaImgFmt_from_vaFmtData(struct va_fmt_data* data) {
+static VAImageFormat* vaImgFmt_apply_quirks(struct va_fmt_data* data) {
     static VAImageFormat ret = {0};
-    VAImageFormat fmt = {
-        .fourcc = data->va_fourcc,
-        .byte_order = data->byte_order,
-        .bits_per_pixel = 32,
-        .depth = data->depth,
-        .blue_mask = data->blue_mask,
-        .green_mask = data->green_mask,
-        .red_mask = data->red_mask,
-        .alpha_mask = 0,
-        .va_reserved = {0}
-    };
-    memcpy(&ret, &fmt, sizeof(VAImageFormat));
+    memcpy(&ret, data->fmt, sizeof(VAImageFormat));
+    if ((kmsvnc->va_byteorder_swap ^ !strncmp(kmsvnc->va->vendor_string, "Mesa", 4)) && data->depth != 30) {
+        printf("applying rgb mask byte order swap\n");
+        ret.blue_mask = __builtin_bswap32(data->fmt->blue_mask);
+        ret.green_mask = __builtin_bswap32(data->fmt->green_mask);
+        ret.red_mask = __builtin_bswap32(data->fmt->red_mask);
+    }
     return &ret;
 }
 
@@ -126,6 +121,7 @@ int va_init() {
     }
 
     setenv("DISPLAY", "", 1);
+    setenv("WAYLAND_DISPLAY", "", 1);
 
     struct kmsvnc_va_data *va = malloc(sizeof(struct kmsvnc_va_data));
     if (!va) KMSVNC_FATAL("memory allocation error at %s:%d\n", __FILE__, __LINE__);
@@ -161,8 +157,8 @@ int va_init() {
     VAStatus status;
     VA_MUST(vaInitialize(va->dpy, &major, &minor));
 
-    const char *vendor_string = vaQueryVendorString(va->dpy);
-    printf("vaapi vendor %s\n", vendor_string);
+    va->vendor_string = vaQueryVendorString(va->dpy);
+    printf("vaapi vendor %s\n", va->vendor_string);
 
     VADRMPRIMESurfaceDescriptor prime_desc;
     VASurfaceAttrib prime_attrs[2] = {
@@ -291,45 +287,29 @@ int va_init() {
     }
 
     struct va_fmt_data format_to_try[] = {
-        {KMSVNC_FOURCC_TO_INT('R','G','B','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff00, 0xff0000, 0xff000000, 0},
-        {KMSVNC_FOURCC_TO_INT('R','G','B','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff00, 0xff0000, 0xff000000, 0},
+        {KMSVNC_FOURCC_TO_INT('R','G','B','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24},
+        {KMSVNC_FOURCC_TO_INT('R','G','B','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32},
 
-        {KMSVNC_FOURCC_TO_INT('X','B','G','R'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff0000, 0xff00, 0xff, 0},
-        {KMSVNC_FOURCC_TO_INT('A','B','G','R'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff0000, 0xff00, 0xff, 0},
+        {KMSVNC_FOURCC_TO_INT('X','B','G','R'), NULL, 0, VA_RT_FORMAT_RGB32, 24},
+        {KMSVNC_FOURCC_TO_INT('A','B','G','R'), NULL, 1, VA_RT_FORMAT_RGB32, 32},
 
-        {KMSVNC_FOURCC_TO_INT('X','R','G','B'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff, 0xff00, 0xff0000, 0},
-        {KMSVNC_FOURCC_TO_INT('A','R','G','B'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff, 0xff00, 0xff0000, 0},
+        {KMSVNC_FOURCC_TO_INT('X','R','G','B'), NULL, 0, VA_RT_FORMAT_RGB32, 24},
+        {KMSVNC_FOURCC_TO_INT('A','R','G','B'), NULL, 1, VA_RT_FORMAT_RGB32, 32},
 
-        {KMSVNC_FOURCC_TO_INT('B','G','R','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24, 0xff000000, 0xff0000, 0xff00, 0},
-        {KMSVNC_FOURCC_TO_INT('B','G','R','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32, 0xff000000, 0xff0000, 0xff00, 0},
+        {KMSVNC_FOURCC_TO_INT('B','G','R','X'), NULL, 0, VA_RT_FORMAT_RGB32, 24},
+        {KMSVNC_FOURCC_TO_INT('B','G','R','A'), NULL, 1, VA_RT_FORMAT_RGB32, 32},
 
 
-        {KMSVNC_FOURCC_TO_INT('X','R','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30, 0x3ff, 0xffc00, 0x3ff00000, 0},
-        {KMSVNC_FOURCC_TO_INT('A','R','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30, 0x3ff, 0xffc00, 0x3ff00000, 0},
-        {KMSVNC_FOURCC_TO_INT('X','B','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30, 0x3ff00000, 0xffc00, 0x3ff, 0},
-        {KMSVNC_FOURCC_TO_INT('A','B','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30, 0x3ff00000, 0xffc00, 0x3ff, 0},
+        {KMSVNC_FOURCC_TO_INT('X','R','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30},
+        {KMSVNC_FOURCC_TO_INT('A','R','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30},
+        {KMSVNC_FOURCC_TO_INT('X','B','3','0'), NULL, 0, VA_RT_FORMAT_RGB32_10, 30},
+        {KMSVNC_FOURCC_TO_INT('A','B','3','0'), NULL, 1, VA_RT_FORMAT_RGB32_10, 30},
     };
 
     for (int i = 0; i < va->img_fmt_count; i++) {
         for (int j = 0; j < KMSVNC_ARRAY_ELEMENTS(format_to_try); j++) {
             if (va->img_fmts[i].fourcc == format_to_try[j].va_fourcc) {
-                if (
-                    va->img_fmts[i].blue_mask == format_to_try[j].blue_mask &&
-                    va->img_fmts[i].green_mask == format_to_try[j].green_mask &&
-                    va->img_fmts[i].red_mask == format_to_try[j].red_mask
-                ) {
-                    format_to_try[j].fmt = va->img_fmts + i;
-                }
-                else if (
-                    format_to_try[j].depth != 30 &&
-                    va->img_fmts[i].blue_mask == __builtin_bswap32(format_to_try[j].blue_mask) &&
-                    va->img_fmts[i].green_mask == __builtin_bswap32(format_to_try[j].green_mask) &&
-                    va->img_fmts[i].red_mask == __builtin_bswap32(format_to_try[j].red_mask)
-                ) {
-                    // mesa quirk: mesa fourcc and pixel data is lsb_first for RGB32 formats, msb_first for RGB32_10 formats
-                    format_to_try[j].byte_order = 1u;
-                    format_to_try[j].fmt = va->img_fmts + i;
-                }
+                format_to_try[j].fmt = va->img_fmts + i;
             }
         }
     }
@@ -344,7 +324,7 @@ int va_init() {
             for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(format_to_try); i++) {
                 if (format_to_try[i].fmt == NULL) continue;
                 if (va->image->format.fourcc == format_to_try[i].fmt->fourcc) {
-                    va->selected_fmt = vaImgFmt_from_vaFmtData(format_to_try + i);
+                    va->selected_fmt = vaImgFmt_apply_quirks(format_to_try + i);
                     break;
                 }
             }
@@ -389,7 +369,7 @@ int va_init() {
                 continue;
             }
             else {
-                va->selected_fmt = vaImgFmt_from_vaFmtData(format_to_try + i);
+                va->selected_fmt = vaImgFmt_apply_quirks(format_to_try + i);
                 break;
             }
         }
