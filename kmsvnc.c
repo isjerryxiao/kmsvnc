@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <time.h>
+#include <unistd.h>
 #include <argp.h>
 #include <arpa/inet.h>
 
@@ -222,7 +223,7 @@ void signal_handler(int signum){
 }
 
 static struct argp_option kmsvnc_main_options[] = {
-    {"device", 'd', "/dev/dri/card0", 0, "DRM device"},
+    {"device", 'd', "/dev/dri/cardX", 0, "DRM device"},
     {"source-plane", 0xfefc, "0", 0, "Use specific plane"},
     {"source-crtc", 0xfefd, "0", 0, "Use specific crtc (to list all crtcs and planes, set this to -1)"},
     {"force-driver", 0xfefe, "i915", 0, "force a certain driver (for debugging)"},
@@ -398,7 +399,10 @@ int main(int argc, char **argv)
 
     kmsvnc->vnc_opt = vncopt;
 
-    kmsvnc->card = "/dev/dri/card0";
+    #define DEVICE_EXAMPLE_MAX_SIZE 15
+    #define DEVICE_EXAMPLE_FALLBACK "/dev/dri/card0"
+    static char device_example[DEVICE_EXAMPLE_MAX_SIZE] = DEVICE_EXAMPLE_FALLBACK;
+    kmsvnc->card = device_example;
     kmsvnc->va_derive_enabled = -1;
     kmsvnc->vnc_opt->bind = &(struct in_addr){0};
     kmsvnc->vnc_opt->always_shared = 1;
@@ -411,6 +415,18 @@ int main(int argc, char **argv)
 
     struct argp argp = {kmsvnc_main_options, parse_opt, args_doc, doc};
     argp_parse(&argp, argc, argv, 0, 0, NULL);
+
+    if (kmsvnc->card == device_example) {
+        for (int i = 0; i < 10; i++) {
+            snprintf(kmsvnc->card, DEVICE_EXAMPLE_MAX_SIZE, "/dev/dri/card%d", i);
+            if (!access(kmsvnc->card, F_OK)) {
+                break;
+            }
+            else {
+                snprintf(kmsvnc->card, DEVICE_EXAMPLE_MAX_SIZE, DEVICE_EXAMPLE_FALLBACK);
+            }
+        }
+    }
 
     if (!kmsvnc->disable_input) {
         const char* XKB_DEFAULT_LAYOUT = getenv("XKB_DEFAULT_LAYOUT");
