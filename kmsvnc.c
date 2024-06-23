@@ -250,6 +250,7 @@ static struct argp_option kmsvnc_main_options[] = {
     {"wakeup", 'w', 0, OPTION_ARG_OPTIONAL, "Move mouse to wake the system up before start"},
     {"disable-input", 'i', 0, OPTION_ARG_OPTIONAL, "Disable uinput"},
     {"desktop-name", 'n', "kmsvnc", 0, "Specify vnc desktop name"},
+    {"password-file", 0xff0d, "", 0, "File containing password (max 8 characters)"},
     {0}
 };
 
@@ -366,6 +367,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case 0xff0c:
             kmsvnc->va_byteorder_swap = 1;
+            break;
+        case 0xff0d:
+            kmsvnc->vnc_opt->password_file = arg;
             break;
         case 'w':
             kmsvnc->input_wakeup = 1;
@@ -525,6 +529,23 @@ int main(int argc, char **argv)
     if (!kmsvnc->disable_input) {
         kmsvnc->server->kbdAddEvent = rfb_key_hook;
         kmsvnc->server->ptrAddEvent = rfb_ptr_hook;
+    }
+    if (kmsvnc->vnc_opt->password_file) {
+            static char password[9] = "";
+            static const char* passwords[2] = { password, 0 };
+            FILE *password_file = fopen(kmsvnc->vnc_opt->password_file, "r");
+
+            if (password_file) {
+                fgets(password, sizeof(password), password_file);
+                fclose(password_file);
+            }
+
+            if (*password) password[strcspn(password, "\n")] = '\0';
+
+            if (*password) {
+                kmsvnc->server->authPasswdData = passwords;
+                kmsvnc->server->passwordCheck = rfbCheckPasswordByList;
+            }
     }
     rfbInitServer(kmsvnc->server);
     rfbRunEventLoop(kmsvnc->server, -1, TRUE);

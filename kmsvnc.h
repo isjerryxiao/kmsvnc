@@ -25,6 +25,7 @@ struct vnc_opt
     char always_shared;
     char disable_cmpfb;
     char *desktop_name;
+    char *password_file;
 };
 
 struct kmsvnc_data
