@@ -31,7 +31,7 @@ IF(NOT HAVE_LIBC_SYS_pidfd_getfd)
 ENDIF()
 include(CMakePushCheckState)
 cmake_push_check_state()
-set(CMAKE_REQUIRED_INCLUDES ${LIBDRM_INCLUDEDIR}/libdrm) # can't do anything about that
+set(CMAKE_REQUIRED_INCLUDES ${LIBDRM_INCLUDE_DIRS})
 set(CMAKE_REQUIRED_LIBRARIES ${LIBDRM_LIBRARIES})
 check_symbol_exists(drmGetFormatName "xf86drm.h" HAVE_LIBDRM_drmGetFormatName)
 cmake_pop_check_state()
@@ -45,12 +45,11 @@ target_sources(kmsvnc PUBLIC
     ${kmsvnc_SOURCES}
 )
 target_include_directories(kmsvnc PUBLIC
-  ${LIBDRM_INCLUDEDIR}
-  ${LIBDRM_INCLUDEDIR}/libdrm
-  ${LIBVNCSERVER_INCLUDEDIR}
-  ${XKBCOMMON_INCLUDEDIR}
-  ${LIBVA_INCLUDEDIR}
-  ${LIBVA_DRM_INCLUDEDIR}
+  ${LIBDRM_INCLUDE_DIRS}
+  ${LIBVNCSERVER_INCLUDE_DIRS}
+  ${XKBCOMMON_INCLUDE_DIRS}
+  ${LIBVA_INCLUDE_DIRS}
+  ${LIBVA_DRM_INCLUDE_DIRS}
 )
 target_link_libraries(kmsvnc PUBLIC
   m
