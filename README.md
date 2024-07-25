@@ -42,4 +42,3 @@ make
 ## Running
 Helps are available via `kmsvnc --help`.  
 For example, `kmsvnc -p 5901 -b 0.0.0.0 -4 -d /dev/dri/card2`  
-Note that no security is currently supported.
