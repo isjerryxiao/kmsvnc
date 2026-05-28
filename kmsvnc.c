@@ -92,6 +92,26 @@ static void update_screen_buf(char* to, char *from, int width, int height) {
     }
 }
 
+static void set_blank_vnc_cursor()
+{
+    char cursorString[] = "x";
+    char maskString[] = "x";
+    static unsigned char alphaSource[] = {0};
+    static unsigned char richSource[] = {0, 0, 0, 0};
+
+    rfbCursorPtr cursor = rfbMakeXCursor(1, 1, cursorString, maskString);
+    if (!cursor) {
+        return;
+    }
+
+    cursor->richSource = richSource;
+    cursor->alphaSource = alphaSource;
+    cursor->xhot = 0;
+    cursor->yhot = 0;
+
+    rfbSetCursor(kmsvnc->server, cursor);
+}
+
 static inline void update_vnc_cursor(char *data, int width, int height) {
     uint8_t r, g, b, a;
     #define CURSOR_MIN_A 160 // ~63%
@@ -117,7 +137,6 @@ static inline void update_vnc_cursor(char *data, int width, int height) {
         }
     }
     if (min_x > max_x || min_y > max_y) {
-        // no cursor detected
         return;
     }
     int rwidth = max_x - min_x + 1;
@@ -548,6 +567,7 @@ int main(int argc, char **argv)
             }
     }
     rfbInitServer(kmsvnc->server);
+    set_blank_vnc_cursor();
     rfbRunEventLoop(kmsvnc->server, -1, TRUE);
     int cursor_frame = 0;
     while (rfbIsActive(kmsvnc->server))
