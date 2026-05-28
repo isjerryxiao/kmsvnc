@@ -27,6 +27,7 @@ void uinput_cleanup()
 }
 
 static void wake_system_up();
+
 int uinput_init()
 {
     struct kmsvnc_input_data *inp = malloc(sizeof(struct kmsvnc_input_data));
@@ -39,24 +40,46 @@ int uinput_init()
     {
         KMSVNC_FATAL("Failed to open uinput\n");
     }
+
+    /*
+     * Keyboard/buttons.
+     */
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_KEY);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_SYN);
+
     for (int i = 0; i < UINPUT_MAX_KEY; i++)
     {
         INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, i);
     }
 
+    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_LEFT);
+    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_MIDDLE);
+    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_RIGHT);
+
+    /*
+     * Absolute pointer.
+     *
+     * kmsvnc receives absolute VNC pointer coordinates and sends ABS_X/ABS_Y.
+     * Do not advertise REL_X/REL_Y here, otherwise Xorg/libinput may classify
+     * this device as a mixed relative mouse and apply acceleration / incorrect
+     * pointer handling.
+     */
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_ABS);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_ABSBIT, ABS_X);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_ABSBIT, ABS_Y);
 
-    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_REL);
-    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_RELBIT, REL_X);
-    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_RELBIT, REL_Y);
+    /*
+     * Make the virtual device closer to an absolute passthrough device.
+     *
+     * Your working "Mouse passthrough (absolute)" device exposes
+     * INPUT_PROP_DIRECT, so we mimic that first.
+     */
+    INP_IOCTL_MAY(inp->uinput_fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
 
-    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_LEFT);
-    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_MIDDLE);
-    INP_IOCTL_MUST(inp->uinput_fd, UI_SET_KEYBIT, BTN_RIGHT);
+    /*
+     * Keep EV_REL only for wheel scrolling.
+     * Do not enable REL_X or REL_Y.
+     */
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_EVBIT, EV_REL);
     INP_IOCTL_MUST(inp->uinput_fd, UI_SET_RELBIT, REL_WHEEL);
 
@@ -64,8 +87,13 @@ int uinput_init()
     memset(&abs, 0, sizeof(abs));
     abs.absinfo.maximum = UINPUT_ABS_MAX;
     abs.absinfo.minimum = 0;
+    abs.absinfo.fuzz = 0;
+    abs.absinfo.flat = 0;
+    abs.absinfo.resolution = 0;
+
     abs.code = ABS_X;
     INP_IOCTL_MUST(inp->uinput_fd, UI_ABS_SETUP, &abs);
+
     abs.code = ABS_Y;
     INP_IOCTL_MUST(inp->uinput_fd, UI_ABS_SETUP, &abs);
 
@@ -90,6 +118,7 @@ int uinput_init()
         printf("waiting for 1 second for mouse input to be processed...\n");
         sleep(1);
     }
+
     return 0;
 }
 
@@ -100,18 +129,23 @@ void rfb_key_hook(rfbBool down, rfbKeySym keysym, rfbClientPtr cl)
         .keycode = XKB_KEYCODE_INVALID,
         .level = 0,
     };
+
     xkb_keymap_key_for_each(kmsvnc->keymap->map, key_iter, &search);
+
     if (search.keycode == XKB_KEYCODE_INVALID)
     {
         fprintf(stderr, "Keysym %04x not found in our keymap\n", keysym);
         return;
     }
+
     // printf("key %s, keysym %04x, keycode %u\n", down ? "down" : "up", keysym, search.keycode);
+
     if (search.keycode >= UINPUT_MAX_KEY)
     {
         fprintf(stderr, "Keycode %d >= %d\n", search.keycode, UINPUT_MAX_KEY);
         return;
     }
+
     if (down != kmsvnc->input->keystate[search.keycode])
     {
         struct input_event ies[] = {
@@ -128,6 +162,7 @@ void rfb_key_hook(rfbBool down, rfbKeySym keysym, rfbClientPtr cl)
                 .value = 0,
             },
         };
+
         for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies); i++)
         {
             KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies[i], sizeof(ies[0]));
@@ -140,10 +175,13 @@ void rfb_key_hook(rfbBool down, rfbKeySym keysym, rfbClientPtr cl)
 void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
 {
     // printf("pointer to %d, %d\n", screen_x, screen_y);
+
     float global_x = (float)(screen_x + kmsvnc->input_offx);
     float global_y = (float)(screen_y + kmsvnc->input_offy);
+
     int touch_x = round(global_x / (kmsvnc->input_width ?: kmsvnc->drm->mfb->width) * UINPUT_ABS_MAX);
     int touch_y = round(global_y / (kmsvnc->input_height ?: kmsvnc->drm->mfb->height) * UINPUT_ABS_MAX);
+
     struct input_event ies1[] = {
         {
             .type = EV_ABS,
@@ -158,25 +196,30 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
         {
             .type = EV_KEY,
             .code = BTN_LEFT,
-            .value = !!(mask & 0b1)},
+            .value = !!(mask & 0b1)
+        },
         {
             .type = EV_KEY,
             .code = BTN_MIDDLE,
-            .value = !!(mask & 0b10)},
+            .value = !!(mask & 0b10)
+        },
         {
             .type = EV_KEY,
             .code = BTN_RIGHT,
-            .value = !!(mask & 0b100)},
+            .value = !!(mask & 0b100)
+        },
         {
             .type = EV_SYN,
             .code = SYN_REPORT,
             .value = 0,
         },
     };
+
     for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies1); i++)
     {
         KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
     }
+
     if (mask & 0b11000)
     {
         struct input_event ies2[] = {
@@ -191,6 +234,7 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
                 .value = 0,
             },
         };
+
         for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies2); i++)
         {
             KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies2[i], sizeof(ies2[0]));
@@ -200,30 +244,30 @@ void rfb_ptr_hook(int mask, int screen_x, int screen_y, rfbClientPtr cl)
 
 static void wake_system_up()
 {
-    struct input_event ies1[] = {
-        {
-            .type = EV_REL,
-            .code = REL_X,
-            .value = 1,
-        },
-        {
-            .type = EV_SYN,
-            .code = SYN_REPORT,
-            .value = 0,
-        },
-        {
-            .type = EV_REL,
-            .code = REL_X,
-            .value = -1,
-        },
+    /*
+     * Original kmsvnc sent REL_X here to wake the desktop:
+     *
+     *   REL_X +1
+     *   REL_X -1
+     *
+     * But this patched device intentionally no longer advertises REL_X/REL_Y.
+     * Sending REL_X from a device that does not support REL_X is inconsistent.
+     *
+     * So keep this as a harmless SYN only.
+     * If wake-up behavior is needed later, implement it with a separate
+     * relative pointer device instead of mixing REL_X/REL_Y into this absolute
+     * pointer device.
+     */
+    struct input_event ies[] = {
         {
             .type = EV_SYN,
             .code = SYN_REPORT,
             .value = 0,
         },
     };
-    for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies1); i++)
+
+    for (int i = 0; i < KMSVNC_ARRAY_ELEMENTS(ies); i++)
     {
-        KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies1[i], sizeof(ies1[0]));
+        KMSVNC_WRITE_MAY(kmsvnc->input->uinput_fd, &ies[i], sizeof(ies[0]));
     }
 }
