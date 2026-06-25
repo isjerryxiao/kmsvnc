@@ -555,6 +555,7 @@ int main(int argc, char **argv)
         between_frames();
         if (kmsvnc->server->clientHead)
         {
+            drm_refresh_fb();
             kmsvnc->drm->funcs->sync_start(kmsvnc->drm->prime_fd);
             kmsvnc->drm->funcs->convert(kmsvnc->drm->mapped, kmsvnc->drm->mfb->width, kmsvnc->drm->mfb->height, kmsvnc->buf1);
             kmsvnc->drm->funcs->sync_end(kmsvnc->drm->prime_fd);
