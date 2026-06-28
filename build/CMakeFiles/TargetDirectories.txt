@@ -1,0 +1,7 @@
+/home/justin/softwares/kmsvnc/build/CMakeFiles/kmsvnc.dir
+/home/justin/softwares/kmsvnc/build/CMakeFiles/edit_cache.dir
+/home/justin/softwares/kmsvnc/build/CMakeFiles/rebuild_cache.dir
+/home/justin/softwares/kmsvnc/build/CMakeFiles/list_install_components.dir
+/home/justin/softwares/kmsvnc/build/CMakeFiles/install.dir
+/home/justin/softwares/kmsvnc/build/CMakeFiles/install/local.dir
+/home/justin/softwares/kmsvnc/build/CMakeFiles/install/strip.dir

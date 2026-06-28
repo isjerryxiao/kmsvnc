@@ -771,3 +771,37 @@ int drm_vendors() {
 
     return 0;
 }
+
+int drm_refresh_fb() {
+    struct kmsvnc_drm_data *drm = kmsvnc->drm;
+    if (!drm->plane) return 1;
+    drmModePlane *cur_plane = drmModeGetPlane(drm->drm_fd, drm->plane->plane_id);
+    if (!cur_plane) return 1;
+    uint32_t cur_fb_id = cur_plane->fb_id;
+    drmModeFreePlane(cur_plane);
+    if (cur_fb_id == drm->mfb->fb_id) return 0;
+    if (drm->mapped && drm->mapped != MAP_FAILED) {
+        munmap(drm->mapped, drm->mmap_size);
+        drm->mapped = NULL;
+    }
+    if (drm->prime_fd > 0) {
+        close(drm->prime_fd);
+        drm->prime_fd = 0;
+    }
+    if (drm->mfb) {
+        drmModeFreeFB2(drm->mfb);
+        drm->mfb = NULL;
+    }
+    drm->mfb = drmModeGetFB2(drm->drm_fd, cur_fb_id);
+    if (!drm->mfb) return 1;
+    drm->mmap_size = drm->mfb->width * drm->mfb->height * 4;
+    int err = drmPrimeHandleToFD(drm->drm_fd, drm->mfb->handles[0], O_RDWR, &drm->prime_fd);
+    if (err < 0 || drm->prime_fd < 0) return 1;
+    drm->mmap_fd = drm->prime_fd;
+    drm->mapped = mmap(NULL, drm->mmap_size, PROT_READ, MAP_SHARED, drm->mmap_fd, 0);
+    if (drm->mapped == MAP_FAILED) {
+        drm->mapped = NULL;
+        return 1;
+    }
+    return 0;
+}

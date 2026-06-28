@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/home/justin/softwares/kmsvnc/build",
+  "command": "/usr/bin/aarch64-linux-gnu-gcc  -I/usr/include/libdrm -O3 -DNDEBUG -o CMakeFiles/kmsvnc.dir/kmsvnc.c.o -c /home/justin/softwares/kmsvnc/kmsvnc.c",
+  "file": "/home/justin/softwares/kmsvnc/kmsvnc.c"
+},
+{
+  "directory": "/home/justin/softwares/kmsvnc/build",
+  "command": "/usr/bin/aarch64-linux-gnu-gcc  -I/usr/include/libdrm -O3 -DNDEBUG -o CMakeFiles/kmsvnc.dir/drm.c.o -c /home/justin/softwares/kmsvnc/drm.c",
+  "file": "/home/justin/softwares/kmsvnc/drm.c"
+},
+{
+  "directory": "/home/justin/softwares/kmsvnc/build",
+  "command": "/usr/bin/aarch64-linux-gnu-gcc  -I/usr/include/libdrm -O3 -DNDEBUG -o CMakeFiles/kmsvnc.dir/input.c.o -c /home/justin/softwares/kmsvnc/input.c",
+  "file": "/home/justin/softwares/kmsvnc/input.c"
+},
+{
+  "directory": "/home/justin/softwares/kmsvnc/build",
+  "command": "/usr/bin/aarch64-linux-gnu-gcc  -I/usr/include/libdrm -O3 -DNDEBUG -o CMakeFiles/kmsvnc.dir/keymap.c.o -c /home/justin/softwares/kmsvnc/keymap.c",
+  "file": "/home/justin/softwares/kmsvnc/keymap.c"
+},
+{
+  "directory": "/home/justin/softwares/kmsvnc/build",
+  "command": "/usr/bin/aarch64-linux-gnu-gcc  -I/usr/include/libdrm -O3 -DNDEBUG -o CMakeFiles/kmsvnc.dir/va.c.o -c /home/justin/softwares/kmsvnc/va.c",
+  "file": "/home/justin/softwares/kmsvnc/va.c"
+},
+{
+  "directory": "/home/justin/softwares/kmsvnc/build",
+  "command": "/usr/bin/aarch64-linux-gnu-gcc  -I/usr/include/libdrm -O3 -DNDEBUG -o CMakeFiles/kmsvnc.dir/drm_master.c.o -c /home/justin/softwares/kmsvnc/drm_master.c",
+  "file": "/home/justin/softwares/kmsvnc/drm_master.c"
+}
+]

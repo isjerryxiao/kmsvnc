@@ -1,0 +1,1 @@
+/usr/bin/aarch64-linux-gnu-gcc -O3 -DNDEBUG CMakeFiles/kmsvnc.dir/kmsvnc.c.o CMakeFiles/kmsvnc.dir/drm.c.o CMakeFiles/kmsvnc.dir/input.c.o CMakeFiles/kmsvnc.dir/keymap.c.o CMakeFiles/kmsvnc.dir/va.c.o CMakeFiles/kmsvnc.dir/drm_master.c.o -o kmsvnc  -lm -ldrm -lvncserver -lxkbcommon -lva -lva-drm -lva -lva-drm 
